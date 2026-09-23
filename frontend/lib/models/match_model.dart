@@ -1,17 +1,8 @@
-enum MatchSport {
-  football5('football_5'),
-  football7('football_7'),
-  padel('padel');
-
-  const MatchSport(this.value);
-
-  final String value;
-
-  static MatchSport fromValue(String value) => MatchSport.values.firstWhere(
-        (sport) => sport.value == value,
-        orElse: () => throw FormatException('Unknown match sport: $value'),
-      );
-}
+import 'court_model.dart';
+import 'match_level_model.dart';
+import 'match_player_model.dart';
+import 'sport_model.dart';
+import 'user_model.dart';
 
 enum MatchStatus {
   open('open'),
@@ -28,31 +19,18 @@ enum MatchStatus {
       );
 }
 
-enum MatchLevel {
-  basico('básico'),
-  basicoIntermedio('básico/intermedio'),
-  intermedio('intermedio'),
-  intermedioAvanzado('intermedio avanzado'),
-  avanzado('avanzado'),
-  elite('élite');
-
-  const MatchLevel(this.value);
-
-  final String value;
-
-  static MatchLevel fromValue(String value) => MatchLevel.values.firstWhere(
-        (level) => level.value == value,
-        orElse: () => throw FormatException('Unknown match level: $value'),
-      );
-}
-
 class MatchModel {
   const MatchModel({
     this.id,
     required this.organizerId,
-    required this.sport,
-    required this.level,
-    required this.location,
+    required this.sportId,
+    required this.levelId,
+    required this.courtId,
+    this.sport,
+    this.level,
+    this.court,
+    this.organizer,
+    this.players,
     required this.scheduledAt,
     required this.startTime,
     required this.endTime,
@@ -64,9 +42,14 @@ class MatchModel {
 
   final int? id;
   final int organizerId;
-  final MatchSport sport;
-  final MatchLevel level;
-  final String location;
+  final int sportId;
+  final int levelId;
+  final int courtId;
+  final SportModel? sport;
+  final MatchLevelModel? level;
+  final CourtModel? court;
+  final UserModel? organizer;
+  final List<MatchPlayerModel>? players;
   final DateTime scheduledAt;
   final DateTime startTime;
   final DateTime endTime;
@@ -79,9 +62,26 @@ class MatchModel {
     return MatchModel(
       id: (json['id'] as num?)?.toInt(),
       organizerId: (json['organizer_id'] as num).toInt(),
-      sport: MatchSport.fromValue(json['sport'] as String),
-      level: MatchLevel.fromValue(json['level'] as String),
-      location: json['location'] as String,
+      sportId: (json['sport_id'] as num).toInt(),
+      levelId: (json['level_id'] as num).toInt(),
+      courtId: (json['court_id'] as num).toInt(),
+      sport: json['sport'] != null
+          ? SportModel.fromJson(json['sport'] as Map<String, dynamic>)
+          : null,
+      level: json['level'] != null
+          ? MatchLevelModel.fromJson(json['level'] as Map<String, dynamic>)
+          : null,
+      court: json['court'] != null
+          ? CourtModel.fromJson(json['court'] as Map<String, dynamic>)
+          : null,
+      organizer: json['organizer'] != null
+          ? UserModel.fromJson(json['organizer'] as Map<String, dynamic>)
+          : null,
+      players: json['players'] != null
+          ? (json['players'] as List<dynamic>)
+              .map((item) => MatchPlayerModel.fromJson(item as Map<String, dynamic>))
+              .toList()
+          : null,
       scheduledAt: DateTime.parse(json['scheduled_at'] as String),
       startTime: DateTime.parse(json['start_time'] as String),
       endTime: DateTime.parse(json['end_time'] as String),
@@ -96,9 +96,9 @@ class MatchModel {
     return {
       if (id != null) 'id': id,
       'organizer_id': organizerId,
-      'sport': sport.value,
-      'level': level.value,
-      'location': location,
+      'sport_id': sportId,
+      'level_id': levelId,
+      'court_id': courtId,
       'scheduled_at': scheduledAt.toIso8601String(),
       'start_time': startTime.toIso8601String(),
       'end_time': endTime.toIso8601String(),

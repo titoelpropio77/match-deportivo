@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'config/app_config.dart';
 import 'models/user_model.dart';
-import 'screens/home.dart';
+import 'screens/home/home_shell_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/auth_service.dart';
 import 'services/match_api_service.dart';
@@ -44,6 +44,7 @@ class _AuthGateState extends State<_AuthGate> {
 
   _SessionStatus _status = _SessionStatus.checking;
   String? _token;
+  UserModel? _user;
 
   @override
   void initState() {
@@ -67,10 +68,11 @@ class _AuthGateState extends State<_AuthGate> {
     }
 
     try {
-      await _authService.me(token);
+      final user = await _authService.me(token);
       if (!mounted) return;
       setState(() {
         _token = token;
+        _user = user;
         _status = _SessionStatus.authenticated;
       });
     } catch (_) {
@@ -83,6 +85,7 @@ class _AuthGateState extends State<_AuthGate> {
   void _handleAuthenticated(UserModel user, String token) {
     setState(() {
       _token = token;
+      _user = user;
       _status = _SessionStatus.authenticated;
     });
   }
@@ -100,6 +103,7 @@ class _AuthGateState extends State<_AuthGate> {
     if (!mounted) return;
     setState(() {
       _token = null;
+      _user = null;
       _status = _SessionStatus.unauthenticated;
     });
   }
@@ -112,8 +116,9 @@ class _AuthGateState extends State<_AuthGate> {
           body: Center(child: CircularProgressIndicator()),
         );
       case _SessionStatus.authenticated:
-        return HomeScreen(
-          apiService: MatchApiService(
+        return HomeShellScreen(
+          user: _user!,
+          matchApiService: MatchApiService(
             baseUrl: AppConfig.backendUrl,
             token: _token,
           ),
