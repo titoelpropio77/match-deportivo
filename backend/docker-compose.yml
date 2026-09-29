@@ -1,0 +1,45 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: Match Deportivo
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: "base64:7v5U8x0R1Y2Z3A4B5C6D7E8F9G0H1I2J3K4L5M6N7O8="
+      APP_URL: http://localhost:8000
+      TZ: America/La_Paz
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: match_deportivo
+      DB_USERNAME: match_deportivo
+      DB_PASSWORD: match_deportivo
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/var/www/html
+      - /var/www/html/vendor
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: match_deportivo
+      POSTGRES_USER: match_deportivo
+      POSTGRES_PASSWORD: match_deportivo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U match_deportivo -d match_deportivo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
