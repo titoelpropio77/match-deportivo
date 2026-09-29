@@ -39,3 +39,6 @@ body, .main-sidebar, .brand-link { font-family: 'Poppins', 'Source Sans Pro', sa
 .settings-nav .list-group-item { border-left: 0; border-right: 0; }
 
 .login-page { background: linear-gradient(135deg, #1f2d3d 0%, #007bff 100%); }
+
+.court-map { width: 100%; height: 340px; border-radius: .25rem; border: 1px solid #dee2e6; }
+.court-map[data-editable="0"] { height: 260px; }

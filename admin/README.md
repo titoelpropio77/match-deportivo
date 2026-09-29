@@ -38,6 +38,16 @@ Entra en http://localhost:8001 con `ADMIN_EMAIL` / `ADMIN_PASSWORD` del `.env` (
 
 > Ojo: `php artisan migrate:fresh` en el backend borra también las tablas de permisos. Después vuelve a correr `php artisan migrate --seed` aquí.
 
+## Google Maps (ubicación de canchas)
+
+Al crear/editar una cancha se elige el punto exacto en un mapa (clic o arrastrando el marcador); latitud y longitud se llenan solas.
+
+1. En Google Cloud Console habilita **Maps JavaScript API** y **Geocoding API** (para "Buscar dirección").
+2. Crea una API key y restríngela por *HTTP referrer* (`http://localhost:8001/*`).
+3. Pon la key en `admin/.env`: `GOOGLE_MAPS_API_KEY=...` (opcional `GOOGLE_MAPS_MAP_ID`; `DEMO_MAP_ID` sirve en desarrollo).
+
+Sin key, el formulario muestra un aviso y deja escribir latitud/longitud a mano.
+
 ## Roles y permisos
 
 - Cada ruta usa el middleware `permission:<modulo>.<accion>` y cada botón/ítem de menú `@can`.

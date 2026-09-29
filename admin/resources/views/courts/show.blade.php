@@ -40,6 +40,9 @@
                         </dd>
                         <dt class="col-sm-5">Partidos registrados</dt><dd class="col-sm-7">{{ $court->matches_count }}</dd>
                     </dl>
+                    <div class="row mt-3">
+                        @include('courts.partials.map-picker', ['editable' => false])
+                    </div>
                 </div>
             </div>
         </div>

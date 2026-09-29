@@ -38,19 +38,12 @@
         <label for="address">Dirección *</label>
         <input id="address" name="address" class="form-control @error('address') is-invalid @enderror" value="{{ old('address', $court->address) }}" required>
     </div>
-    <div class="col-md-3 form-group">
-        <label for="latitude">Latitud *</label>
-        <input id="latitude" name="latitude" type="number" step="0.0000001" class="form-control @error('latitude') is-invalid @enderror" value="{{ old('latitude', $court->latitude ?? '-17.7833') }}" required>
-    </div>
-    <div class="col-md-3 form-group">
-        <label for="longitude">Longitud *</label>
-        <input id="longitude" name="longitude" type="number" step="0.0000001" class="form-control @error('longitude') is-invalid @enderror" value="{{ old('longitude', $court->longitude ?? '-63.1821') }}" required>
-    </div>
-    <div class="col-md-3 form-group">
+    @include('courts.partials.map-picker', ['editable' => true])
+    <div class="col-md-6 form-group">
         <label for="opening_time">Apertura *</label>
         <input id="opening_time" name="opening_time" type="time" class="form-control @error('opening_time') is-invalid @enderror" value="{{ old('opening_time', substr((string) $court->opening_time, 0, 5)) }}" required>
     </div>
-    <div class="col-md-3 form-group">
+    <div class="col-md-6 form-group">
         <label for="closing_time">Cierre *</label>
         <input id="closing_time" name="closing_time" type="time" class="form-control @error('closing_time') is-invalid @enderror" value="{{ old('closing_time', substr((string) $court->closing_time, 0, 5)) }}" required>
     </div>
@@ -69,17 +62,3 @@
     @endforeach
 </div>
 
-@unless ($court->exists)
-    @push('scripts')
-        <script>
-            // New courts start at the selected city's center; adjust to the exact venue afterwards.
-            $('#city_id').on('change', function () {
-                const option = this.selectedOptions[0];
-                if (option && option.dataset.lat) {
-                    $('#latitude').val(option.dataset.lat);
-                    $('#longitude').val(option.dataset.lng);
-                }
-            });
-        </script>
-    @endpush
-@endunless

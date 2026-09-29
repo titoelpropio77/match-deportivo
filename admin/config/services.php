@@ -14,6 +14,12 @@ return [
     |
     */
 
+    // Court location picker in the admin. Needs "Maps JavaScript API" (and "Geocoding API" for the address search).
+    'google_maps' => [
+        'key' => env('GOOGLE_MAPS_API_KEY'),
+        'map_id' => env('GOOGLE_MAPS_MAP_ID', 'DEMO_MAP_ID'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
