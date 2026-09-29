@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\City;
 use App\Models\Court;
 use App\Models\CourtReservation;
 use App\Models\Sport;
@@ -87,10 +88,14 @@ class CourtSeeder extends Seeder
             ],
         ];
 
+        // All sample venues are in Santa Cruz de la Sierra (city rows come from the cities migration).
+        $santaCruzId = City::query()->where('key', 'santa_cruz_de_la_sierra')->value('id');
+
         foreach ($courts as $data) {
             $court = Court::updateOrCreate(
                 ['name' => $data['name']],
                 [
+                    'city_id' => $santaCruzId,
                     'address' => $data['address'],
                     'latitude' => $data['latitude'],
                     'longitude' => $data['longitude'],

@@ -11,6 +11,7 @@ class Court extends Model
 {
     protected $fillable = [
         'owner_id',
+        'city_id',
         'name',
         'address',
         'latitude',
@@ -38,6 +39,14 @@ class Court extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    /**
+     * City where the venue is located, used to segment courts.
+     */
+    public function city(): BelongsTo
+    {
+        return $this->belongsTo(City::class);
     }
 
     /**

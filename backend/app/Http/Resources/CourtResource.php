@@ -17,6 +17,8 @@ class CourtResource extends JsonResource
         return [
             'id' => $this->id,
             'owner_id' => $this->owner_id,
+            'city_id' => $this->city_id,
+            'city' => new CityResource($this->whenLoaded('city')),
             'name' => $this->name,
             'address' => $this->address,
             'latitude' => (float) $this->latitude,

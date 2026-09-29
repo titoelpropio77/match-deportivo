@@ -6,16 +6,22 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CourtResource;
 use App\Models\Court;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class CourtController extends Controller
 {
     /**
-     * List all courts with their sports and photo gallery.
+     * List courts with their city, sports and photo gallery, optionally filtered by city.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'city_id' => ['sometimes', 'integer', 'exists:cities,id'],
+        ]);
+
         $courts = Court::query()
-            ->with(['sports', 'photos'])
+            ->with(['city', 'sports', 'photos'])
+            ->when(isset($validated['city_id']), fn ($query) => $query->where('city_id', $validated['city_id']))
             ->orderBy('name')
             ->get();
 

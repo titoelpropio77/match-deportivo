@@ -96,13 +96,14 @@ class MatchController extends Controller
     }
 
     /**
-     * List open matches, optionally filtered by sport and location.
+     * List open matches, optionally filtered by sport, court, city and date.
      */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'sport_id' => ['sometimes', 'integer', 'exists:sports,id'],
             'court_id' => ['sometimes', 'integer', 'exists:courts,id'],
+            'city_id' => ['sometimes', 'integer', 'exists:cities,id'],
             'date' => ['sometimes', 'date'],
         ]);
 
@@ -114,6 +115,9 @@ class MatchController extends Controller
             })
             ->when(isset($validated['court_id']), function (Builder $query) use ($validated): void {
                 $query->where('court_id', $validated['court_id']);
+            })
+            ->when(isset($validated['city_id']), function (Builder $query) use ($validated): void {
+                $query->whereHas('court', fn (Builder $court) => $court->where('city_id', $validated['city_id']));
             })
             ->when(isset($validated['date']), function (Builder $query) use ($validated): void {
                 $query->whereDate('start_time', $validated['date']);

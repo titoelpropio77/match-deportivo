@@ -21,6 +21,9 @@ class CourtFieldResource extends JsonResource
                 'id' => $this->court->id,
                 'name' => $this->court->name,
                 'address' => $this->court->address,
+                'city' => $this->court->relationLoaded('city')
+                    ? new CityResource($this->court->city)
+                    : null,
                 'opening_time' => $this->court->opening_time,
                 'closing_time' => $this->court->closing_time,
                 'photos' => $this->court->relationLoaded('photos')

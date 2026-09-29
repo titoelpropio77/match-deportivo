@@ -24,6 +24,42 @@ services:
     volumes:
       - .:/var/www/html
       - /var/www/html/vendor
+    healthcheck:
+      # Healthy once migrations ran and the server answers, so admin can migrate after it.
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://localhost:8000/up') === false ? 1 : 0);"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  admin:
+    build:
+      context: ../admin
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      APP_NAME: Match Deportivo Admin
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8001
+      TZ: America/La_Paz
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: match_deportivo
+      DB_USERNAME: match_deportivo
+      DB_PASSWORD: match_deportivo
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    volumes:
+      - ../admin:/var/www/html
+      - /var/www/html/vendor
 
   db:
     image: postgres:16-alpine

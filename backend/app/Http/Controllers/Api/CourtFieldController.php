@@ -16,17 +16,22 @@ use Illuminate\Validation\ValidationException;
 class CourtFieldController extends Controller
 {
     /**
-     * List bookable courts, optionally filtered by sport and a date that still has free hours.
+     * List bookable courts, optionally filtered by city, sport and a date that still has free hours.
      */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'sport_id' => ['nullable', 'integer', 'exists:sports,id'],
+            'city_id' => ['nullable', 'integer', 'exists:cities,id'],
             'date' => ['nullable', 'date_format:Y-m-d'],
         ]);
 
         $fields = CourtField::query()
-            ->with(['sports', 'court.photos'])
+            ->with(['sports', 'court.photos', 'court.city'])
+            ->when(
+                isset($validated['city_id']),
+                fn ($query) => $query->whereHas('court', fn ($court) => $court->where('city_id', $validated['city_id']))
+            )
             ->when(
                 isset($validated['sport_id']),
                 fn ($query) => $query->whereHas(
@@ -63,7 +68,7 @@ class CourtFieldController extends Controller
             'date' => ['required', 'date_format:Y-m-d'],
         ]);
 
-        $courtField->load(['sports', 'court']);
+        $courtField->load(['sports', 'court.city']);
         $slots = $courtField->slotsForDate($validated['date']);
 
         return response()->json([
