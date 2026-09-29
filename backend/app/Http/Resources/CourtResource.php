@@ -28,6 +28,13 @@ class CourtResource extends JsonResource
             'review_data' => $this->review_data,
             'sports' => SportResource::collection($this->whenLoaded('sports')),
             'photos' => $this->whenLoaded('photos', fn () => $this->photos->pluck('url')),
+            // Physical courts of the venue, so clients can pick which ones a match uses.
+            'fields' => $this->whenLoaded('fields', fn () => $this->fields->sortBy('name')->values()->map(fn ($field) => [
+                'id' => $field->id,
+                'name' => $field->name,
+                'price_per_hour' => (float) $field->price_per_hour,
+                'sports' => SportResource::collection($field->sports),
+            ])),
         ];
     }
 }

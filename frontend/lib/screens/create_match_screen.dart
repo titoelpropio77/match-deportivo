@@ -48,6 +48,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   int? _sportId;
   int? _levelId;
   int? _courtId;
+  final Set<int> _selectedFieldIds = {};
   MatchGender _gender = MatchGender.mixed;
   bool _loadingOptions = true;
   Object? _optionsError;
@@ -129,8 +130,9 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
 
         final alreadySelected = _selectedPlayers.map((u) => u.id).toSet();
         setState(() {
-          _suggestions =
-              results.where((u) => !alreadySelected.contains(u.id)).toList();
+          _suggestions = results
+              .where((u) => !alreadySelected.contains(u.id))
+              .toList();
           _searching = false;
         });
       } catch (_) {
@@ -172,7 +174,13 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
     );
     if (time == null) return;
 
-    final result = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    final result = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
     setState(() {
       if (isStart) {
         _startTime = result;
@@ -184,10 +192,45 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
 
   Future<bool?> _askJoinAsPlayer() => showCreateMatchJoinDialog(context);
 
+  CourtModel? get _selectedCourt {
+    for (final court in _courts) {
+      if (court.id == _courtId) return court;
+    }
+    return null;
+  }
+
+  void _selectCourt(CourtModel court) {
+    setState(() {
+      _courtId = court.id;
+      _selectedFieldIds.clear();
+    });
+  }
+
+  void _toggleField(int fieldId, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedFieldIds.add(fieldId);
+      } else {
+        _selectedFieldIds.remove(fieldId);
+      }
+    });
+  }
+
   Future<void> _submit() async {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (_sportId == null || _levelId == null || _courtId == null) {
-      _showMessage('Selecciona el deporte, el nivel y la cancha.', isError: true);
+      _showMessage(
+        'Selecciona el deporte, el nivel y el centro deportivo.',
+        isError: true,
+      );
+      return;
+    }
+    if ((_selectedCourt?.fields.isNotEmpty ?? false) &&
+        _selectedFieldIds.isEmpty) {
+      _showMessage(
+        'Selecciona al menos una cancha del centro deportivo.',
+        isError: true,
+      );
       return;
     }
     if (_startTime == null || _endTime == null) {
@@ -195,7 +238,10 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
       return;
     }
     if (!_endTime!.isAfter(_startTime!)) {
-      _showMessage('La hora de término debe ser posterior a la de inicio.', isError: true);
+      _showMessage(
+        'La hora de término debe ser posterior a la de inicio.',
+        isError: true,
+      );
       return;
     }
     if (!isValid) return;
@@ -210,6 +256,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
         sportId: _sportId!,
         levelId: _levelId!,
         courtId: _courtId!,
+        courtFieldIds: _selectedFieldIds.toList(),
         gender: _gender.value,
         startTime: _startTime!,
         endTime: _endTime!,
@@ -250,7 +297,8 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
 
   Future<void> _pickPaymentQr() async {
     try {
-      final isMobile = !kIsWeb &&
+      final isMobile =
+          !kIsWeb &&
           (defaultTargetPlatform == TargetPlatform.android ||
               defaultTargetPlatform == TargetPlatform.iOS);
 
@@ -301,8 +349,8 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   String _formatDateTime(DateTime? value) {
     if (value == null) return 'Seleccionar';
     final date = MaterialLocalizations.of(context).formatMediumDate(value);
-    final time =
-        MaterialLocalizations.of(context).formatTimeOfDay(TimeOfDay.fromDateTime(value));
+    final time = MaterialLocalizations.of(context)
+        .formatTimeOfDay(TimeOfDay.fromDateTime(value));
     return '$date · $time';
   }
 
@@ -371,7 +419,10 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                   elevation: 4,
                   borderRadius: BorderRadius.circular(12),
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 240, maxWidth: 400),
+                    constraints: const BoxConstraints(
+                      maxHeight: 240,
+                      maxWidth: 400,
+                    ),
                     child: ListView.builder(
                       padding: EdgeInsets.zero,
                       shrinkWrap: true,
@@ -393,22 +444,32 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                 ),
               );
             },
-            onSelected: (court) => setState(() => _courtId = court.id),
-            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-              return TextFormField(
-                controller: controller,
-                focusNode: focusNode,
-                decoration: const InputDecoration(
-                  labelText: 'Lugar / Cancha',
-                  hintText: 'Buscar cancha por nombre o dirección',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.search),
-                ),
-                validator: (_) =>
-                    _courtId == null ? 'Selecciona una cancha.' : null,
-              );
-            },
+            onSelected: _selectCourt,
+            fieldViewBuilder:
+                (context, controller, focusNode, onFieldSubmitted) {
+                  return TextFormField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    decoration: const InputDecoration(
+                      labelText: 'Centro / complejo deportivo',
+                      hintText:
+                          'Buscar centro deportivo por nombre o dirección',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    validator: (_) => _courtId == null
+                        ? 'Selecciona un centro deportivo.'
+                        : null,
+                  );
+                },
           ),
+          if (_selectedCourt != null)
+            _CourtFieldsSelector(
+              fields: _selectedCourt!.fields,
+              selectedIds: _selectedFieldIds,
+              enabled: !_isSubmitting,
+              onChanged: _toggleField,
+            ),
           const SizedBox(height: 16),
           DropdownButtonFormField<int>(
             initialValue: _sportId,
@@ -417,10 +478,12 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               border: OutlineInputBorder(),
             ),
             items: _sports
-                .map((sport) => DropdownMenuItem(
-                      value: sport.id,
-                      child: Text(sport.name),
-                    ))
+                .map(
+                  (sport) => DropdownMenuItem(
+                    value: sport.id,
+                    child: Text(sport.name),
+                  ),
+                )
                 .toList(),
             onChanged: (value) {
               if (value != null) setState(() => _sportId = value);
@@ -434,10 +497,12 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               border: OutlineInputBorder(),
             ),
             items: _levels
-                .map((level) => DropdownMenuItem(
-                      value: level.id,
-                      child: Text(level.name),
-                    ))
+                .map(
+                  (level) => DropdownMenuItem(
+                    value: level.id,
+                    child: Text(level.name),
+                  ),
+                )
                 .toList(),
             onChanged: (value) {
               if (value != null) setState(() => _levelId = value);
@@ -451,10 +516,12 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               border: OutlineInputBorder(),
             ),
             items: MatchGender.values
-                .map((gender) => DropdownMenuItem(
-                      value: gender,
-                      child: Text(gender.label),
-                    ))
+                .map(
+                  (gender) => DropdownMenuItem(
+                    value: gender,
+                    child: Text(gender.label),
+                  ),
+                )
                 .toList(),
             onChanged: (value) {
               if (value != null) setState(() => _gender = value);
@@ -495,7 +562,10 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
             },
           ),
           const SizedBox(height: 24),
-          Text('Agregar jugadores', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Agregar jugadores',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: _playerSearchController,
@@ -520,11 +590,13 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: _suggestions
-                    .map((user) => ListTile(
-                          title: Text(user.name),
-                          subtitle: Text(user.email),
-                          onTap: () => _addPlayer(user),
-                        ))
+                    .map(
+                      (user) => ListTile(
+                        title: Text(user.name),
+                        subtitle: Text(user.email),
+                        onTap: () => _addPlayer(user),
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -534,10 +606,12 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
               spacing: 8,
               runSpacing: 8,
               children: _selectedPlayers
-                  .map((user) => Chip(
-                        label: Text(user.name),
-                        onDeleted: () => _removePlayer(user),
-                      ))
+                  .map(
+                    (user) => Chip(
+                      label: Text(user.name),
+                      onDeleted: () => _removePlayer(user),
+                    ),
+                  )
                   .toList(),
             ),
           const SizedBox(height: 24),
@@ -564,6 +638,61 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                   )
                 : const Text('Crear partido'),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Multi-select of the physical courts of the chosen sports center.
+class _CourtFieldsSelector extends StatelessWidget {
+  const _CourtFieldsSelector({
+    required this.fields,
+    required this.selectedIds,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final List<CourtFieldOption> fields;
+  final Set<int> selectedIds;
+  final bool enabled;
+  final void Function(int fieldId, bool selected) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Canchas', style: textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            fields.isEmpty
+                ? 'Este centro deportivo no tiene canchas registradas.'
+                : 'Elige una o varias canchas donde se jugará el partido.',
+            style: textTheme.bodySmall,
+          ),
+          if (fields.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: fields
+                  .map(
+                    (field) => FilterChip(
+                      label: Text(field.label),
+                      selected: selectedIds.contains(field.id),
+                      onSelected: enabled
+                          ? (selected) => onChanged(field.id, selected)
+                          : null,
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
         ],
       ),
     );
@@ -608,7 +737,11 @@ class _PaymentQrPicker extends StatelessWidget {
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.qr_code_2, size: 40, color: colors.onSurfaceVariant),
+                      Icon(
+                        Icons.qr_code_2,
+                        size: 40,
+                        color: colors.onSurfaceVariant,
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         'Subir foto del QR',

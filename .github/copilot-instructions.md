@@ -31,6 +31,7 @@ Deportes sembrados: Fútbol 5, Fútbol 7, Pádel, Baloncesto, Tenis, Voleibol, W
 ## 4. Partidos (Matchmaking)
 - **`matches`** (modelo `MatchModel`, soft deletes): organizer_id, sport_id, level_id (`match_levels`: Básico, Básico/Intermedio, Intermedio, Intermedio Avanzado, Avanzado, Élite), court_id, gender (`mixed`, `male`, `female`), payment_qr_path, start_time, end_time, max_players, missing_players, status.
 - **Estados de partido** (`MatchStatus`): `open`, `full`, `cancelled`, `finished`.
+- **`match_court_field`** (pivote): canchas físicas del centro deportivo donde se juega el partido (una o varias). Al crear, `court_field_ids[]` es obligatorio si el centro tiene canchas y cada una debe pertenecer al `court_id` elegido. Las respuestas de partidos incluyen `court_fields` (con sus `sports`).
 - **`match_players`**: match_id, user_id, quantity_slots, status (`MatchPlayerStatus`): `pending`, `confirmed`, `reserved` (lista de espera).
 - **`trusted_players`**: jugadores que un organizador acepta "siempre"; se confirman automáticamente al unirse.
 - **Reglas**:
@@ -43,12 +44,13 @@ Deportes sembrados: Fútbol 5, Fútbol 7, Pádel, Baloncesto, Tenis, Voleibol, W
   - Toda operación que toca cupos usa `DB::transaction` + `lockForUpdate` sobre el partido.
 
 ## 5. API (`backend/routes/api.php`)
-- Públicas: `POST register`, `POST login`, `GET matches` (abiertos/llenos futuros, filtros `sport_id`, `court_id`, `city_id`, `date`, paginado 15), `GET matches/{id}`, `GET sports`, `GET match-levels`, `GET cities` (activas), `GET courts` (`city_id`), `GET court-fields` (`sport_id`, `city_id`, `date`), `GET court-fields/{id}/availability?date=`.
+- Públicas: `POST register`, `POST login`, `GET matches` (abiertos/llenos futuros, filtros `sport_id`, `court_id`, `city_id`, `date`, paginado 15), `GET matches/{id}`, `GET sports`, `GET match-levels`, `GET cities` (activas), `GET courts` (`city_id`; incluye `fields` con sus deportes), `GET court-fields` (`sport_id`, `city_id`, `date`), `GET court-fields/{id}/availability?date=`.
 - Con `auth:sanctum`: `me`, `logout`, `matches/mine`, `matches/organized`, `matches/organized/past`, `POST matches`, `join`, `leave`, `DELETE matches/{id}`, `rating-tags`, `finish`, `players` (añadir), `players/{playerId}/review`, `DELETE players/{playerId}`, `GET users/search?query=` (nombre, nickname o email), `POST court-reservations`.
 
 ## 6. Frontend (Flutter)
 - Estructura: `lib/models`, `lib/services` (un `*ApiService` por recurso con `http`), `lib/screens/<feature>/` y `widgets/` por feature, `lib/config`, `lib/data` (datos dummy de canchas destacadas).
 - Estado: `StatefulWidget` + `setState` (sin Provider/Bloc). El token se guarda con `shared_preferences` (`TokenStorage` en `auth_service.dart`); `_AuthGate` en `main.dart` restaura la sesión.
+- Crear partido: se elige el **Centro / complejo deportivo** y luego, con `FilterChip`s, una o varias de sus canchas (`CourtFieldOption`). Tarjeta y detalle del partido muestran esas canchas.
 - Navegación: `HomeShellScreen` con pestañas Inicio / Explorar (placeholder) / Perfil. Desde el dashboard: Reservar Cancha, Buscar Equipos, Mis Canchas (partidos que organizo); Torneos, Equipos, Ranking y Resultados son `ComingSoonScreen`.
 - Paquetes: `http`, `shared_preferences`, `flutter_dotenv`, `url_launcher`, `share_plus`, `image_picker`, `file_picker`.
 - Tests de widgets en `frontend/test/`.
@@ -66,4 +68,5 @@ Deportes sembrados: Fútbol 5, Fútbol 7, Pádel, Baloncesto, Tenis, Voleibol, W
 - Alcance por dueño: el permiso `courts.view_all` permite ver/administrar todas las canchas y asignar el partner (`owner_id`). Sin él (rol `partner`), `Court::visibleTo($user)` filtra listas y dashboard, y `CourtPolicy::manage` (`Gate::authorize('manage', $court)`) protege detalle, edición, borrado y canchas físicas. Todo dato nuevo ligado a una cancha debe respetar este alcance.
 - Permisos base y defaults por rol en `admin/database/seeders/RolesAndPermissionsSeeder.php` (`ROLE_DEFAULTS`): un rol nuevo recibe todos sus defaults; uno existente solo los permisos recién creados, así el seeder no pisa cambios hechos desde el panel. Al agregar una pantalla, crear su permiso y protegerla igual.
 - Usuarios de ejemplo (contraseña `12345678`): `admin.norte@…`, `admin.sur@…` (rol admin) y `partner.wallysur@matchdeportivo.test` (partner de "Complejo Wally Sur").
+- Ubicación de canchas: `courts/partials/map-picker.blade.php` + `public/js/court-map.js` (Google Maps JS API con marcador avanzado arrastrable; lat/lng de solo lectura). Key en `GOOGLE_MAPS_API_KEY` (`config/services.php` → `google_maps`); sin key, lat/lng manuales.
 - Tablas: `AdminTable.init()` (`admin/public/js/admin.js`) monta la barra Exportar / Refrescar / Imprimir / Reiniciar / Columnas; eliminar usa `data-delete-url` (confirmación + DELETE AJAX que responde JSON).

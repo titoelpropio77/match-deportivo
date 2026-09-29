@@ -15,9 +15,9 @@ enum MatchStatus {
   final String value;
 
   static MatchStatus fromValue(String value) => MatchStatus.values.firstWhere(
-        (status) => status.value == value,
-        orElse: () => throw FormatException('Unknown match status: $value'),
-      );
+    (status) => status.value == value,
+    orElse: () => throw FormatException('Unknown match status: $value'),
+  );
 }
 
 enum MatchGender {
@@ -31,9 +31,9 @@ enum MatchGender {
   final String label;
 
   static MatchGender fromValue(String value) => MatchGender.values.firstWhere(
-        (gender) => gender.value == value,
-        orElse: () => throw FormatException('Unknown match gender: $value'),
-      );
+    (gender) => gender.value == value,
+    orElse: () => throw FormatException('Unknown match gender: $value'),
+  );
 }
 
 class MatchModel {
@@ -48,6 +48,7 @@ class MatchModel {
     this.sport,
     this.level,
     this.court,
+    this.courtFields = const [],
     this.organizer,
     this.players,
     required this.scheduledAt,
@@ -69,6 +70,9 @@ class MatchModel {
   final SportModel? sport;
   final MatchLevelModel? level;
   final CourtModel? court;
+
+  /// Courts of the sports center where the match is played.
+  final List<CourtFieldOption> courtFields;
   final UserModel? organizer;
   final List<MatchPlayerModel>? players;
   final DateTime scheduledAt;
@@ -101,13 +105,17 @@ class MatchModel {
       court: json['court'] != null
           ? CourtModel.fromJson(json['court'] as Map<String, dynamic>)
           : null,
+      courtFields: CourtFieldOption.listFromJson(json['court_fields']),
       organizer: json['organizer'] != null
           ? UserModel.fromJson(json['organizer'] as Map<String, dynamic>)
           : null,
       players: json['players'] != null
           ? (json['players'] as List<dynamic>)
-              .map((item) => MatchPlayerModel.fromJson(item as Map<String, dynamic>))
-              .toList()
+                .map(
+                  (item) =>
+                      MatchPlayerModel.fromJson(item as Map<String, dynamic>),
+                )
+                .toList()
           : null,
       scheduledAt: DateTime.parse(json['scheduled_at'] as String),
       startTime: DateTime.parse(json['start_time'] as String),

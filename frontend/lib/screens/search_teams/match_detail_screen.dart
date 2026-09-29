@@ -103,9 +103,15 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
   bool get _canDelete => _isOrganizer && _hasNotStarted && !_hasConcluded;
 
   bool get _canFinish =>
-      _isOrganizer && _hasConcluded && !_isFinished && _match?.status != MatchStatus.cancelled;
+      _isOrganizer &&
+      _hasConcluded &&
+      !_isFinished &&
+      _match?.status != MatchStatus.cancelled;
 
-  Future<bool> _confirm({required String title, required String message}) async {
+  Future<bool> _confirm({
+    required String title,
+    required String message,
+  }) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -144,14 +150,16 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
         _match = updated;
         _isProcessing = false;
       });
-      final myPlayer = updated.players?.where((player) => player.userId == widget.currentUserId);
+      final myPlayer = updated.players?.where(
+        (player) => player.userId == widget.currentUserId,
+      );
       final mine = myPlayer == null || myPlayer.isEmpty ? null : myPlayer.first;
       _showMessage(
         mine?.isReserved == true
             ? 'Quedaste en la lista de reserva.'
             : mine?.isPending == true
-                ? 'Solicitud enviada. El organizador debe confirmarte.'
-                : 'Te uniste a la partida',
+            ? 'Solicitud enviada. El organizador debe confirmarte.'
+            : 'Te uniste a la partida',
       );
     } catch (error) {
       if (!mounted) return;
@@ -179,7 +187,10 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
     }
   }
 
-  Future<void> _handleReviewPlayer(MatchPlayerModel player, String action) async {
+  Future<void> _handleReviewPlayer(
+    MatchPlayerModel player,
+    String action,
+  ) async {
     setState(() => _isProcessing = true);
     try {
       final updated = await widget.matchApiService.reviewPlayer(
@@ -279,8 +290,8 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
         promoted
             ? 'Quitaste al jugador. El siguiente de reserva pasó al partido.'
             : player.isReserved
-                ? 'Quitaste al jugador de la reserva'
-                : 'Quitaste al jugador del partido',
+            ? 'Quitaste al jugador de la reserva'
+            : 'Quitaste al jugador del partido',
       );
     } catch (error) {
       if (!mounted) return;
@@ -316,7 +327,10 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
     );
   }
 
-  Future<void> _handleAddPlayer(UserModel user, {required bool toReserve}) async {
+  Future<void> _handleAddPlayer(
+    UserModel user, {
+    required bool toReserve,
+  }) async {
     setState(() => _isProcessing = true);
     try {
       final updated = await widget.matchApiService.addPlayer(
@@ -345,13 +359,13 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
       title: _isReserved
           ? 'Salir de reserva'
           : _isPending
-              ? 'Cancelar solicitud'
-              : 'Salir del partido',
+          ? 'Cancelar solicitud'
+          : 'Salir del partido',
       message: _isReserved
           ? '¿Confirmas que quieres salir de la lista de reserva?'
           : _isPending
-              ? '¿Confirmas que quieres cancelar tu solicitud?'
-              : '¿Confirmas que quieres salir de este partido?',
+          ? '¿Confirmas que quieres cancelar tu solicitud?'
+          : '¿Confirmas que quieres salir de este partido?',
     );
     if (!confirmed) return;
 
@@ -364,7 +378,9 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
         _match = updated;
         _isProcessing = false;
       });
-      _showMessage(leavingReserve ? 'Saliste de la reserva' : 'Saliste de la partida');
+      _showMessage(
+        leavingReserve ? 'Saliste de la reserva' : 'Saliste de la partida',
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -396,16 +412,15 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
     final players = (_match?.players ?? const <MatchPlayerModel>[])
         .where(
           (player) =>
-              !player.isPending && !player.isReserved && player.userId != widget.currentUserId,
+              !player.isPending &&
+              !player.isReserved &&
+              player.userId != widget.currentUserId,
         )
         .toList();
 
     final ratings = await showDialog<List<PlayerRatingInput>>(
       context: context,
-      builder: (context) => FinishMatchDialog(
-        players: players,
-        tags: tags,
-      ),
+      builder: (context) => FinishMatchDialog(players: players, tags: tags),
     );
     if (ratings == null || !mounted) return;
 
@@ -438,19 +453,24 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
 
     final court = match.court?.name ?? 'una cancha';
     final sport = match.sport?.name ?? 'un partido';
-    final when = MaterialLocalizations.of(context).formatMediumDate(match.startTime.toLocal());
+    final when = MaterialLocalizations.of(context)
+        .formatMediumDate(match.startTime.toLocal());
     final start = MaterialLocalizations.of(context)
         .formatTimeOfDay(TimeOfDay.fromDateTime(match.startTime.toLocal()));
 
     try {
       await SharePlus.instance.share(
         ShareParams(
-          text: 'Te invito a jugar $sport en $court el $when a las $start. Ábrelo en la app para ver la cancha.',
+          text:
+              'Te invito a jugar $sport en $court el $when a las $start. Ábrelo en la app para ver la cancha.',
         ),
       );
     } catch (_) {
       if (!mounted) return;
-      _showMessage('No pudimos abrir las opciones para compartir.', isError: true);
+      _showMessage(
+        'No pudimos abrir las opciones para compartir.',
+        isError: true,
+      );
     }
   }
 
@@ -532,7 +552,9 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
               const Icon(Icons.cloud_off_outlined, size: 48),
               const SizedBox(height: 12),
               Text(
-                _error != null ? _errorMessage(_error!) : 'Partido no encontrado.',
+                _error != null
+                    ? _errorMessage(_error!)
+                    : 'Partido no encontrado.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
@@ -548,7 +570,8 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
     }
 
     final match = _match!;
-    final date = MaterialLocalizations.of(context).formatMediumDate(match.startTime.toLocal());
+    final date = MaterialLocalizations.of(context)
+        .formatMediumDate(match.startTime.toLocal());
     final startTime = MaterialLocalizations.of(context)
         .formatTimeOfDay(TimeOfDay.fromDateTime(match.startTime.toLocal()));
     final endTime = MaterialLocalizations.of(context)
@@ -577,10 +600,37 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
               const SizedBox(height: 16),
               _InfoRow(icon: Icons.calendar_today_outlined, label: date),
               const SizedBox(height: 8),
-              _InfoRow(icon: Icons.schedule_outlined, label: '$startTime - $endTime'),
-              if (match.paymentQrUrl != null && match.paymentQrUrl!.isNotEmpty) ...[
+              _InfoRow(
+                icon: Icons.schedule_outlined,
+                label: '$startTime - $endTime',
+              ),
+              if (match.courtFields.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('Canchas', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: match.courtFields
+                      .map(
+                        (field) => Chip(
+                          avatar: const Icon(
+                            Icons.sports_tennis_outlined,
+                            size: 18,
+                          ),
+                          label: Text(field.label),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+              if (match.paymentQrUrl != null &&
+                  match.paymentQrUrl!.isNotEmpty) ...[
                 const SizedBox(height: 24),
-                Text('Pago de la cancha', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Pago de la cancha',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const SizedBox(height: 8),
                 Text(
                   'Escanea este QR para pagar la cancha al organizador.',
@@ -608,7 +658,8 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
               ],
               const SizedBox(height: 24),
               MatchPlayersList(
-                organizerName: match.organizer?.nickname ??
+                organizerName:
+                    match.organizer?.nickname ??
                     match.organizer?.name ??
                     'Organizador',
                 organizerUserId: match.organizerId,
@@ -617,8 +668,12 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                 isFull: _isFull,
                 onViewPlayer: _isProcessing ? null : _showPlayerReview,
                 onRemovePlayer: _isProcessing ? null : _handleRemovePlayer,
-                onAddPlayer: _isProcessing ? null : () => _openAddPlayer(toReserve: false),
-                onAddToReserve: _isProcessing ? null : () => _openAddPlayer(toReserve: true),
+                onAddPlayer: _isProcessing
+                    ? null
+                    : () => _openAddPlayer(toReserve: false),
+                onAddToReserve: _isProcessing
+                    ? null
+                    : () => _openAddPlayer(toReserve: true),
               ),
             ],
           ),
@@ -726,17 +781,23 @@ class _MatchActionBar extends StatelessWidget {
             canFinish
                 ? Icons.flag_outlined
                 : isJoined
-                    ? Icons.exit_to_app_rounded
-                    : Icons.group_add_outlined,
+                ? Icons.exit_to_app_rounded
+                : Icons.group_add_outlined,
           );
 
     Widget primaryButton({required bool compact}) {
       final buttonStyle = compact
           ? const ButtonStyle(
-              padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 8)),
+              padding: WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 8),
+              ),
             )
           : null;
-      final buttonLabel = Text(label, maxLines: 1, overflow: TextOverflow.ellipsis);
+      final buttonLabel = Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
 
       if (outlined) {
         return OutlinedButton.icon(
@@ -791,7 +852,11 @@ class _MatchActionBar extends StatelessWidget {
                         height: 48,
                         child: OutlinedButton.icon(
                           onPressed: isProcessing ? null : onDelete,
-                          icon: Icon(Icons.delete_outline_rounded, size: 18, color: colors.error),
+                          icon: Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                            color: colors.error,
+                          ),
                           label: Text(
                             'Eliminar',
                             style: TextStyle(color: colors.error),

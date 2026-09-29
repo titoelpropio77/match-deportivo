@@ -6,6 +6,7 @@ use App\Enums\MatchGender;
 use App\Enums\MatchPlayerStatus;
 use App\Enums\MatchStatus;
 use App\Enums\RatingPolarity;
+use App\Models\CourtField;
 use App\Models\MatchModel;
 use App\Models\MatchPlayer;
 use App\Models\PlayerRating;
@@ -28,6 +29,16 @@ class MatchController extends Controller
             'sport_id' => ['required', 'integer', 'exists:sports,id'],
             'level_id' => ['required', 'integer', 'exists:match_levels,id'],
             'court_id' => ['required', 'integer', 'exists:courts,id'],
+            // Courts of the chosen venue; required whenever the venue has any.
+            'court_field_ids' => [
+                Rule::requiredIf(fn () => CourtField::query()->where('court_id', $request->integer('court_id'))->exists()),
+                'array',
+            ],
+            'court_field_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('court_fields', 'id')->where('court_id', $request->integer('court_id')),
+            ],
             'gender' => ['required', Rule::enum(MatchGender::class)],
             'start_time' => ['required', 'date'],
             'end_time' => ['required', 'date', 'after:start_time'],
@@ -36,6 +47,9 @@ class MatchController extends Controller
             'player_ids.*' => ['integer', 'distinct', 'exists:users,id'],
             'join_as_player' => ['sometimes', 'boolean'],
             'payment_qr' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
+        ], [
+            'court_field_ids.required' => 'Selecciona al menos una cancha del centro deportivo.',
+            'court_field_ids.*.exists' => 'Una de las canchas no pertenece al centro deportivo seleccionado.',
         ]);
 
         $organizerId = $request->user()->getAuthIdentifier();
@@ -73,6 +87,8 @@ class MatchController extends Controller
                 'status' => MatchStatus::Open,
             ]);
 
+            $match->courtFields()->sync($validated['court_field_ids'] ?? []);
+
             if ($joinAsPlayer) {
                 $match->players()->create([
                     'user_id' => $organizerId,
@@ -89,7 +105,7 @@ class MatchController extends Controller
                 ]);
             }
 
-            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court']);
+            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports']);
         });
 
         return response()->json(['data' => $match], 201);
@@ -108,7 +124,7 @@ class MatchController extends Controller
         ]);
 
         $matches = MatchModel::query()
-            ->with(['sport', 'level', 'court'])
+            ->with(['sport', 'level', 'court', 'courtFields.sports'])
             ->whereIn('status', [MatchStatus::Open->value, MatchStatus::Full->value])
             ->when(isset($validated['sport_id']), function (Builder $query) use ($validated): void {
                 $query->where('sport_id', $validated['sport_id']);
@@ -137,7 +153,7 @@ class MatchController extends Controller
         $userId = $request->user()->getAuthIdentifier();
 
         $matches = MatchModel::query()
-            ->with(['sport', 'level', 'court', 'players.user'])
+            ->with(['sport', 'level', 'court', 'courtFields.sports', 'players.user'])
             ->whereHas('players', function (Builder $playersQuery) use ($userId): void {
                 $playersQuery->where('user_id', $userId);
             })
@@ -157,7 +173,7 @@ class MatchController extends Controller
         $userId = $request->user()->getAuthIdentifier();
 
         $matches = MatchModel::query()
-            ->with(['sport', 'level', 'court'])
+            ->with(['sport', 'level', 'court', 'courtFields.sports'])
             ->where('organizer_id', $userId)
             // ->where('status', MatchStatus::Open->value)
             ->where('end_time', '>=', now())
@@ -175,7 +191,7 @@ class MatchController extends Controller
         $userId = $request->user()->getAuthIdentifier();
 
         $matches = MatchModel::query()
-            ->with(['sport', 'level', 'court'])
+            ->with(['sport', 'level', 'court', 'courtFields.sports'])
             ->where('organizer_id', $userId)
             ->where('end_time', '<', now())
             ->orderByDesc('end_time')
@@ -196,6 +212,7 @@ class MatchController extends Controller
                 'level',
                 'court.photos',
                 'court.sports',
+                'courtFields.sports',
                 'players.user',
             ])
             ->findOrFail($id);
@@ -235,7 +252,7 @@ class MatchController extends Controller
                     'status' => MatchPlayerStatus::Reserved,
                 ]);
 
-                return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court']);
+                return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports']);
             }
 
             $isTrusted = $userId === $match->organizer_id
@@ -258,7 +275,7 @@ class MatchController extends Controller
                 : MatchStatus::Open;
             $match->save();
 
-            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court']);
+            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports']);
         });
 
         return response()->json(['data' => $match]);
@@ -285,7 +302,7 @@ class MatchController extends Controller
 
             $this->releasePlayer($match, $player);
 
-            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court']);
+            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports']);
         });
 
         return response()->json(['data' => $match]);
@@ -348,7 +365,7 @@ class MatchController extends Controller
             if ($validated['action'] === 'reject') {
                 $this->releasePlayer($match, $player);
 
-                return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court']);
+                return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports']);
             }
 
             $player->status = MatchPlayerStatus::Confirmed;
@@ -361,7 +378,7 @@ class MatchController extends Controller
                 ]);
             }
 
-            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court']);
+            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports']);
         });
 
         return response()->json(['data' => $match]);
@@ -406,7 +423,7 @@ class MatchController extends Controller
                 $existing->status = MatchPlayerStatus::Confirmed;
                 $existing->save();
 
-                return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court']);
+                return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports']);
             }
 
             $hasActiveSlot = $match->missing_players >= 1;
@@ -426,7 +443,7 @@ class MatchController extends Controller
                 $match->save();
             }
 
-            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court']);
+            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports']);
         });
 
         return response()->json(['data' => $match]);
@@ -456,7 +473,7 @@ class MatchController extends Controller
 
             $this->releasePlayer($match, $player);
 
-            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court']);
+            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports']);
         });
 
         return response()->json(['data' => $match]);
@@ -566,7 +583,7 @@ class MatchController extends Controller
             $match->status = MatchStatus::Finished;
             $match->save();
 
-            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court']);
+            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports']);
         });
 
         return response()->json(['data' => $match]);

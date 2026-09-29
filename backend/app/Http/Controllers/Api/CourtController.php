@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 class CourtController extends Controller
 {
     /**
-     * List courts with their city, sports and photo gallery, optionally filtered by city.
+     * List courts with their city, sports, photos and physical courts, optionally filtered by city.
      */
     public function index(Request $request): JsonResponse
     {
@@ -20,7 +20,7 @@ class CourtController extends Controller
         ]);
 
         $courts = Court::query()
-            ->with(['city', 'sports', 'photos'])
+            ->with(['city', 'sports', 'photos', 'fields.sports'])
             ->when(isset($validated['city_id']), fn ($query) => $query->where('city_id', $validated['city_id']))
             ->orderBy('name')
             ->get();

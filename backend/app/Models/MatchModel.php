@@ -7,6 +7,7 @@ use App\Enums\MatchPlayerStatus;
 use App\Enums\MatchStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
@@ -81,6 +82,15 @@ class MatchModel extends Model
     public function court(): BelongsTo
     {
         return $this->belongsTo(Court::class);
+    }
+
+    /**
+     * Physical courts of the venue booked for this match (e.g. "Cancha 1", "Cancha 2").
+     */
+    public function courtFields(): BelongsToMany
+    {
+        return $this->belongsToMany(CourtField::class, 'match_court_field', 'match_id', 'court_field_id')
+            ->orderBy('court_fields.name');
     }
 
     /**

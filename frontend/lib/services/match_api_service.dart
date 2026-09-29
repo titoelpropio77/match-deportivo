@@ -28,12 +28,9 @@ class MatchApiException implements Exception {
 }
 
 class MatchApiService {
-  MatchApiService({
-    required String baseUrl,
-    this._token,
-    http.Client? client,
-  })  : _baseUrl = baseUrl.replaceFirst(RegExp(r'/$'), ''),
-        _client = client ?? http.Client();
+  MatchApiService({required String baseUrl, this._token, http.Client? client})
+    : _baseUrl = baseUrl.replaceFirst(RegExp(r'/$'), ''),
+      _client = client ?? http.Client();
 
   final String _baseUrl;
   final String? _token;
@@ -134,6 +131,7 @@ class MatchApiService {
     required int sportId,
     required int levelId,
     required int courtId,
+    List<int> courtFieldIds = const [],
     required String gender,
     required DateTime startTime,
     required DateTime endTime,
@@ -158,6 +156,10 @@ class MatchApiService {
     });
     for (var index = 0; index < playerIds.length; index++) {
       request.fields['player_ids[$index]'] = playerIds[index].toString();
+    }
+    for (var index = 0; index < courtFieldIds.length; index++) {
+      request.fields['court_field_ids[$index]'] = courtFieldIds[index]
+          .toString();
     }
 
     if (paymentQrPath != null && paymentQrPath.isNotEmpty) {
@@ -185,10 +187,7 @@ class MatchApiService {
     return MatchModel.fromJson(body['data'] as Map<String, dynamic>);
   }
 
-  Future<MatchModel> joinMatch(
-    int matchId, {
-    int quantitySlots = 1,
-  }) async {
+  Future<MatchModel> joinMatch(int matchId, {int quantitySlots = 1}) async {
     final response = await _client.post(
       _uri('/api/matches/$matchId/join'),
       headers: _headers(),
@@ -265,7 +264,9 @@ class MatchApiService {
     final data = body['data'];
 
     if (data is! List) {
-      throw const FormatException('The rating tags response has an invalid format');
+      throw const FormatException(
+        'The rating tags response has an invalid format',
+      );
     }
 
     return data
@@ -311,9 +312,8 @@ class MatchApiService {
   void dispose() => _client.close();
 
   Uri _uri(String path, [Map<String, String>? queryParameters]) {
-    return Uri.parse('$_baseUrl$path').replace(
-      queryParameters: queryParameters,
-    );
+    return Uri.parse('$_baseUrl$path')
+        .replace(queryParameters: queryParameters);
   }
 
   Map<String, String> _headers({bool json = true}) {

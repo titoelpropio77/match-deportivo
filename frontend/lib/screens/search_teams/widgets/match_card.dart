@@ -49,10 +49,11 @@ class MatchCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       match.sport?.name ?? 'Deporte',
-                      style: (compact ? theme.textTheme.titleMedium : theme.textTheme.titleLarge)
-                          ?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style:
+                          (compact
+                                  ? theme.textTheme.titleMedium
+                                  : theme.textTheme.titleLarge)
+                              ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ),
                   _SlotsBadge(slots: match.missingPlayers, isFull: isFull),
@@ -67,8 +68,15 @@ class MatchCard extends StatelessWidget {
                   _InfoItem(icon: Icons.schedule_outlined, label: time),
                   _InfoItem(
                     icon: Icons.location_on_outlined,
-                    label: match.court?.name ?? 'Cancha',
+                    label: match.court?.name ?? 'Centro deportivo',
                   ),
+                  if (match.courtFields.isNotEmpty)
+                    _InfoItem(
+                      icon: Icons.sports_tennis_outlined,
+                      label: match.courtFields
+                          .map((field) => field.name)
+                          .join(', '),
+                    ),
                   _InfoItem(icon: Icons.wc_outlined, label: match.gender.label),
                 ],
               ),
@@ -92,8 +100,8 @@ class MatchCard extends StatelessWidget {
                       isJoining
                           ? 'Uniendo...'
                           : isFull
-                              ? 'Unirse a reserva'
-                              : 'Unirse',
+                          ? 'Unirse a reserva'
+                          : 'Unirse',
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: colors.primary,
