@@ -9,7 +9,9 @@ class MatchCard extends StatelessWidget {
     required this.isJoining,
     required this.onJoin,
     this.showJoinButton = true,
+    this.statusLabel = 'Ya estás inscrito',
     this.onTap,
+    this.compact = false,
     super.key,
   });
 
@@ -17,12 +19,15 @@ class MatchCard extends StatelessWidget {
   final bool isJoining;
   final VoidCallback onJoin;
   final bool showJoinButton;
+  final String? statusLabel;
   final VoidCallback? onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final isFull = match.isFull;
     final date = MaterialLocalizations.of(context)
         .formatMediumDate(match.scheduledAt.toLocal());
     final time = MaterialLocalizations.of(context)
@@ -34,7 +39,7 @@ class MatchCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.all(compact ? 12 : 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -44,15 +49,16 @@ class MatchCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       match.sport?.name ?? 'Deporte',
-                      style: theme.textTheme.titleLarge?.copyWith(
+                      style: (compact ? theme.textTheme.titleMedium : theme.textTheme.titleLarge)
+                          ?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                  _SlotsBadge(slots: match.missingPlayers),
+                  _SlotsBadge(slots: match.missingPlayers, isFull: isFull),
                 ],
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: compact ? 8 : 14),
               Wrap(
                 spacing: 18,
                 runSpacing: 8,
@@ -63,9 +69,10 @@ class MatchCard extends StatelessWidget {
                     icon: Icons.location_on_outlined,
                     label: match.court?.name ?? 'Cancha',
                   ),
+                  _InfoItem(icon: Icons.wc_outlined, label: match.gender.label),
                 ],
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: compact ? 10 : 18),
               if (showJoinButton)
                 SizedBox(
                   width: double.infinity,
@@ -76,15 +83,25 @@ class MatchCard extends StatelessWidget {
                             dimension: 17,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.sports_soccer_outlined),
-                    label: Text(isJoining ? 'Uniendo...' : 'Unirse'),
+                        : Icon(
+                            isFull
+                                ? Icons.playlist_add_outlined
+                                : Icons.sports_soccer_outlined,
+                          ),
+                    label: Text(
+                      isJoining
+                          ? 'Uniendo...'
+                          : isFull
+                              ? 'Unirse a reserva'
+                              : 'Unirse',
+                    ),
                     style: FilledButton.styleFrom(
                       backgroundColor: colors.primary,
                       padding: const EdgeInsets.symmetric(vertical: 13),
                     ),
                   ),
                 )
-              else
+              else if (statusLabel != null)
                 Row(
                   children: [
                     Icon(
@@ -94,7 +111,7 @@ class MatchCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      'Ya estás inscrito',
+                      statusLabel!,
                       style: TextStyle(
                         color: colors.primary,
                         fontWeight: FontWeight.w600,
@@ -111,9 +128,10 @@ class MatchCard extends StatelessWidget {
 }
 
 class _SlotsBadge extends StatelessWidget {
-  const _SlotsBadge({required this.slots});
+  const _SlotsBadge({required this.slots, this.isFull = false});
 
   final int slots;
+  final bool isFull;
 
   @override
   Widget build(BuildContext context) {
@@ -122,13 +140,13 @@ class _SlotsBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: colors.secondaryContainer,
+        color: isFull ? colors.errorContainer : colors.secondaryContainer,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        '$slots ${slots == 1 ? 'cupo' : 'cupos'}',
+        isFull ? 'Lleno' : '$slots ${slots == 1 ? 'cupo' : 'cupos'}',
         style: TextStyle(
-          color: colors.onSecondaryContainer,
+          color: isFull ? colors.onErrorContainer : colors.onSecondaryContainer,
           fontWeight: FontWeight.w700,
         ),
       ),

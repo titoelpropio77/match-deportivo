@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/match_model.dart';
+import '../../models/sport_model.dart';
 import '../../services/court_api_service.dart';
 import '../../services/match_api_service.dart';
 import '../../services/match_level_api_service.dart';
@@ -9,6 +10,7 @@ import '../../services/user_api_service.dart';
 import '../create_match_screen.dart';
 import 'match_detail_screen.dart';
 import 'widgets/match_card.dart';
+import 'widgets/open_match_filters.dart';
 
 /// "Buscar equipos" screen: shows the user's joined matches and open matches to join.
 class SearchTeamsScreen extends StatefulWidget {
@@ -28,14 +30,27 @@ class SearchTeamsScreen extends StatefulWidget {
 class _SearchTeamsScreenState extends State<SearchTeamsScreen> {
   List<MatchModel> _myMatches = const [];
   List<MatchModel> _openMatches = const [];
+  List<SportModel> _sports = const [];
   Object? _error;
   bool _isLoading = true;
+  DateTime? _filterDate;
+  int? _filterSportId;
   final Set<int> _joiningMatchIds = {};
+  late final _sportApiService = SportApiService(
+    baseUrl: widget.matchApiService.baseUrl,
+    token: widget.matchApiService.token,
+  );
 
   @override
   void initState() {
     super.initState();
     _loadMatches();
+  }
+
+  @override
+  void dispose() {
+    _sportApiService.dispose();
+    super.dispose();
   }
 
   Future<void> _loadMatches() async {
@@ -47,18 +62,25 @@ class _SearchTeamsScreenState extends State<SearchTeamsScreen> {
     try {
       final results = await Future.wait([
         widget.matchApiService.listMyMatches(),
-        widget.matchApiService.listOpenMatches(),
+        widget.matchApiService.listOpenMatches(
+          sportId: _filterSportId,
+          date: _filterDate,
+        ),
+        if (_sports.isEmpty) _sportApiService.list() else Future.value(_sports),
       ]);
       if (!mounted) return;
 
-      final myMatches = results[0];
+      final myMatches = results[0] as List<MatchModel>;
+      final openMatches = results[1] as List<MatchModel>;
+      final sports = results[2] as List<SportModel>;
       final myMatchIds = myMatches.map((match) => match.id).toSet();
 
       setState(() {
         _myMatches = myMatches;
-        _openMatches = results[1]
+        _openMatches = openMatches
             .where((match) => !myMatchIds.contains(match.id))
             .toList();
+        _sports = sports;
         _isLoading = false;
       });
     } catch (error) {
@@ -71,15 +93,41 @@ class _SearchTeamsScreenState extends State<SearchTeamsScreen> {
     }
   }
 
+  Future<void> _setDateFilter(DateTime? date) async {
+    setState(() => _filterDate = date);
+    await _loadMatches();
+  }
+
+  Future<void> _setSportFilter(int? sportId) async {
+    setState(() => _filterSportId = sportId);
+    await _loadMatches();
+  }
+
+  String _myMatchStatusLabel(MatchModel match) {
+    final me = match.players
+        ?.where((player) => player.userId == widget.currentUserId)
+        .toList();
+    if (me != null && me.isNotEmpty) {
+      if (me.first.isReserved) return 'Estás en reserva';
+      if (me.first.isPending) return 'Pendiente de confirmación';
+    }
+    return 'Ya estás inscrito';
+  }
+
   Future<void> _joinMatch(MatchModel match) async {
     final matchId = match.id;
     if (matchId == null || _joiningMatchIds.contains(matchId)) return;
 
+    final joiningReserve = match.isFull;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Unirse al partido'),
-        content: const Text('¿Confirmas que quieres unirte a este partido?'),
+        title: Text(joiningReserve ? 'Unirse a reserva' : 'Unirse al partido'),
+        content: Text(
+          joiningReserve
+              ? 'El partido está lleno. ¿Quieres entrar a la lista de reserva?'
+              : '¿Confirmas que quieres unirte a este partido?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -105,7 +153,17 @@ class _SearchTeamsScreenState extends State<SearchTeamsScreen> {
         _myMatches = [updatedMatch, ..._myMatches];
         _joiningMatchIds.remove(matchId);
       });
-      _showMessage('Te uniste a la partida');
+      final me = updatedMatch.players
+          ?.where((player) => player.userId == widget.currentUserId)
+          .toList();
+      final mine = me == null || me.isEmpty ? null : me.first;
+      _showMessage(
+        mine?.isReserved == true
+            ? 'Quedaste en la lista de reserva.'
+            : mine?.isPending == true
+                ? 'Solicitud enviada. El organizador debe confirmarte.'
+                : 'Te uniste a la partida',
+      );
     } catch (error) {
       if (!mounted) return;
 
@@ -164,11 +222,11 @@ class _SearchTeamsScreenState extends State<SearchTeamsScreen> {
     }
   }
 
-  void _openMatchDetail(MatchModel match) {
+  Future<void> _openMatchDetail(MatchModel match) async {
     final matchId = match.id;
     if (matchId == null) return;
 
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => MatchDetailScreen(
           matchId: matchId,
@@ -177,6 +235,10 @@ class _SearchTeamsScreenState extends State<SearchTeamsScreen> {
         ),
       ),
     );
+
+    if (mounted) {
+      await _loadMatches();
+    }
   }
 
   @override
@@ -234,15 +296,28 @@ class _SearchTeamsScreenState extends State<SearchTeamsScreen> {
                   isJoining: false,
                   onJoin: () {},
                   showJoinButton: false,
+                  statusLabel: _myMatchStatusLabel(match),
                   onTap: () => _openMatchDetail(match),
                 ),
               ),
             ),
           const SizedBox(height: 28),
-          _SectionHeader('Partidos abiertos'),
+          const _SectionHeader('Partidos abiertos'),
+          const SizedBox(height: 12),
+          OpenMatchFilters(
+            sports: _sports,
+            selectedDate: _filterDate,
+            selectedSportId: _filterSportId,
+            onDateChanged: _setDateFilter,
+            onSportChanged: _setSportFilter,
+          ),
           const SizedBox(height: 12),
           if (_openMatches.isEmpty)
-            const _InlineEmptyState(message: 'No hay partidas abiertas.')
+            _InlineEmptyState(
+              message: _filterDate != null || _filterSportId != null
+                  ? 'No hay partidos con esos filtros.'
+                  : 'No hay partidas abiertas.',
+            )
           else
             ..._openMatches.map(
               (match) => Padding(

@@ -1,4 +1,7 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
@@ -30,6 +33,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+  String? _photoPath;
+  Uint8List? _photoBytes;
+  String? _photoName;
+  String? _gender;
 
   @override
   void dispose() {
@@ -54,8 +61,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text,
+        gender: _gender!,
         password: _passwordController.text,
         passwordConfirmation: _confirmPasswordController.text,
+        photoPath: _photoPath,
+        photoBytes: _photoBytes,
+        photoFilename: _photoName,
       );
       await widget.tokenStorage.save(result.token);
       if (!mounted) return;
@@ -69,6 +80,66 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  Future<void> _pickFromGallery() async {
+    try {
+      final isMobile = !kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS);
+
+      if (isMobile) {
+        final picked = await ImagePicker().pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 1200,
+          maxHeight: 1200,
+          imageQuality: 85,
+        );
+        if (picked == null) return;
+        final bytes = await picked.readAsBytes();
+        if (!mounted) return;
+        setState(() {
+          _photoPath = picked.path;
+          _photoBytes = bytes;
+          _photoName = picked.name;
+          _errorMessage = null;
+        });
+        return;
+      }
+
+      final file = await FilePicker.pickFile(
+        type: FileType.image,
+        dialogTitle: 'Elegir foto de perfil',
+      );
+      if (file == null) return;
+
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _photoPath = file.path;
+        _photoBytes = bytes;
+        _photoName = file.name;
+        _errorMessage = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'No pudimos abrir la galería.');
+    }
+  }
+
+  void _clearPhoto() {
+    setState(() {
+      _photoPath = null;
+      _photoBytes = null;
+      _photoName = null;
+    });
+  }
+
+  ImageProvider? get _photoProvider {
+    if (_photoBytes != null) return MemoryImage(_photoBytes!);
+    return null;
+  }
+
+  bool get _hasPhoto => _photoProvider != null;
 
   String _messageFor(Object error) {
     if (error is AuthApiException) {
@@ -103,6 +174,66 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
+                    Center(
+                      child: Column(
+                        children: [
+                          Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 52,
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest,
+                                backgroundImage: _photoProvider,
+                                child: _hasPhoto
+                                    ? null
+                                    : Icon(
+                                        Icons.person_outline,
+                                        size: 48,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Material(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  shape: const CircleBorder(),
+                                  child: InkWell(
+                                    customBorder: const CircleBorder(),
+                                    onTap: _isLoading ? null : _pickFromGallery,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(8),
+                                      child: Icon(
+                                        Icons.photo_library_outlined,
+                                        size: 18,
+                                        color: Theme.of(context).colorScheme.onPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: _isLoading ? null : _pickFromGallery,
+                            icon: const Icon(Icons.photo_library_outlined, size: 18),
+                            label: Text(
+                              _hasPhoto ? 'Cambiar foto' : 'Elegir de la galería',
+                            ),
+                          ),
+                          if (_hasPhoto)
+                            TextButton(
+                              onPressed: _isLoading ? null : _clearPhoto,
+                              child: const Text('Quitar foto'),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: _nameController,
                       enabled: !_isLoading,
@@ -148,6 +279,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         labelText: 'Teléfono (opcional)',
                         prefixIcon: Icon(Icons.phone_outlined),
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: _gender,
+                      decoration: const InputDecoration(
+                        labelText: 'Género',
+                        prefixIcon: Icon(Icons.wc_outlined),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'male', child: Text('Hombre')),
+                        DropdownMenuItem(value: 'female', child: Text('Mujer')),
+                      ],
+                      onChanged: _isLoading
+                          ? null
+                          : (value) => setState(() => _gender = value),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'El género es obligatorio.';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
                     TextFormField(

@@ -38,12 +38,14 @@ class CourtInfoHeader extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Icon(Icons.image_not_supported_outlined, color: colors.outline),
                 )
-              : PageView.builder(
-                  itemCount: court.photos.length,
-                  itemBuilder: (context, index) {
-                    return Image.network(court.photos[index], fit: BoxFit.cover);
-                  },
-                ),
+              : court.photos.length == 1
+                  ? Image.network(court.photos.first, fit: BoxFit.cover, width: double.infinity)
+                  : PageView.builder(
+                      itemCount: court.photos.length,
+                      itemBuilder: (context, index) {
+                        return Image.network(court.photos[index], fit: BoxFit.cover);
+                      },
+                    ),
         ),
         Padding(
           padding: const EdgeInsets.all(16),

@@ -1,8 +1,13 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/match_level_model.dart';
+import '../models/match_model.dart';
 import '../models/sport_model.dart';
 import '../models/court_model.dart';
 import '../models/user_model.dart';
@@ -43,6 +48,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   int? _sportId;
   int? _levelId;
   int? _courtId;
+  MatchGender _gender = MatchGender.mixed;
   bool _loadingOptions = true;
   Object? _optionsError;
 
@@ -55,6 +61,9 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   final List<UserModel> _selectedPlayers = [];
 
   bool _isSubmitting = false;
+  String? _paymentQrPath;
+  Uint8List? _paymentQrBytes;
+  String? _paymentQrName;
 
   @override
   void initState() {
@@ -173,6 +182,8 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
     });
   }
 
+  Future<bool?> _askJoinAsPlayer() => showCreateMatchJoinDialog(context);
+
   Future<void> _submit() async {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (_sportId == null || _levelId == null || _courtId == null) {
@@ -189,6 +200,9 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
     }
     if (!isValid) return;
 
+    final joinAsPlayer = await _askJoinAsPlayer();
+    if (joinAsPlayer == null || !mounted) return;
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -196,10 +210,15 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
         sportId: _sportId!,
         levelId: _levelId!,
         courtId: _courtId!,
+        gender: _gender.value,
         startTime: _startTime!,
         endTime: _endTime!,
         maxPlayers: int.parse(_maxPlayersController.text.trim()),
         playerIds: _selectedPlayers.map((u) => u.id).toList(),
+        joinAsPlayer: joinAsPlayer,
+        paymentQrPath: _paymentQrPath,
+        paymentQrBytes: _paymentQrBytes,
+        paymentQrFilename: _paymentQrName,
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -227,6 +246,56 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
   String _errorMessage(Object error) {
     if (error is MatchApiException) return error.message;
     return 'No pudimos crear el partido.';
+  }
+
+  Future<void> _pickPaymentQr() async {
+    try {
+      final isMobile = !kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS);
+
+      if (isMobile) {
+        final picked = await ImagePicker().pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 1600,
+          maxHeight: 1600,
+          imageQuality: 90,
+        );
+        if (picked == null) return;
+        final bytes = await picked.readAsBytes();
+        if (!mounted) return;
+        setState(() {
+          _paymentQrPath = picked.path;
+          _paymentQrBytes = bytes;
+          _paymentQrName = picked.name;
+        });
+        return;
+      }
+
+      final file = await FilePicker.pickFile(
+        type: FileType.image,
+        dialogTitle: 'Elegir foto del QR de cobro',
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _paymentQrPath = file.path;
+        _paymentQrBytes = bytes;
+        _paymentQrName = file.name;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      _showMessage('No pudimos abrir la galería.', isError: true);
+    }
+  }
+
+  void _clearPaymentQr() {
+    setState(() {
+      _paymentQrPath = null;
+      _paymentQrBytes = null;
+      _paymentQrName = null;
+    });
   }
 
   String _formatDateTime(DateTime? value) {
@@ -375,6 +444,25 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
             },
           ),
           const SizedBox(height: 16),
+          DropdownButtonFormField<MatchGender>(
+            initialValue: _gender,
+            decoration: const InputDecoration(
+              labelText: 'Género',
+              border: OutlineInputBorder(),
+            ),
+            items: MatchGender.values
+                .map((gender) => DropdownMenuItem(
+                      value: gender,
+                      child: Text(gender.label),
+                    ))
+                .toList(),
+            onChanged: (value) {
+              if (value != null) setState(() => _gender = value);
+            },
+            validator: (value) =>
+                value == null ? 'Selecciona el género.' : null,
+          ),
+          const SizedBox(height: 16),
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Hora de inicio'),
@@ -452,6 +540,20 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                       ))
                   .toList(),
             ),
+          const SizedBox(height: 24),
+          Text('QR de cobro', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            'Foto del QR donde vas a cobrar la cancha. La verán los jugadores unidos y tú.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          _PaymentQrPicker(
+            bytes: _paymentQrBytes,
+            enabled: !_isSubmitting,
+            onPick: _pickPaymentQr,
+            onClear: _clearPaymentQr,
+          ),
           const SizedBox(height: 32),
           FilledButton(
             onPressed: _isSubmitting ? null : _submit,
@@ -466,4 +568,107 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
       ),
     );
   }
+}
+
+class _PaymentQrPicker extends StatelessWidget {
+  const _PaymentQrPicker({
+    required this.bytes,
+    required this.enabled,
+    required this.onPick,
+    required this.onClear,
+  });
+
+  final Uint8List? bytes;
+  final bool enabled;
+  final VoidCallback onPick;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final hasPhoto = bytes != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: enabled ? onPick : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            height: 180,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colors.outline),
+              color: colors.surfaceContainerHighest,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: hasPhoto
+                ? Image.memory(bytes!, fit: BoxFit.contain)
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.qr_code_2, size: 40, color: colors.onSurfaceVariant),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Subir foto del QR',
+                        style: TextStyle(color: colors.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: enabled ? onPick : null,
+              icon: const Icon(Icons.photo_library_outlined, size: 18),
+              label: Text(hasPhoto ? 'Cambiar foto' : 'Elegir de la galería'),
+            ),
+            if (hasPhoto)
+              TextButton(
+                onPressed: enabled ? onClear : null,
+                child: const Text('Quitar foto'),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Asks whether the organizer should also join as a player when creating a match.
+///
+/// Returns `true` to create and join, `false` to create only, or `null` if cancelled.
+Future<bool?> showCreateMatchJoinDialog(BuildContext context) {
+  return showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('¿Quieres unirte al partido?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Crear el partido no te inscribe automáticamente. Elige cómo continuar.',
+          ),
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Crear y añadirme como jugador'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Solo crear el partido'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      ),
+    ),
+  );
 }

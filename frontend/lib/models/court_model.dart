@@ -5,6 +5,7 @@ class CourtModel {
     required this.id,
     required this.name,
     required this.address,
+    this.ownerId,
     this.latitude,
     this.longitude,
     this.openingTime,
@@ -14,6 +15,7 @@ class CourtModel {
   });
 
   final int id;
+  final int? ownerId;
   final String name;
   final String address;
   final double? latitude;
@@ -26,6 +28,7 @@ class CourtModel {
   factory CourtModel.fromJson(Map<String, dynamic> json) {
     return CourtModel(
       id: (json['id'] as num).toInt(),
+      ownerId: (json['owner_id'] as num?)?.toInt(),
       name: json['name'] as String,
       address: json['address'] as String,
       latitude: _toDouble(json['latitude']),
