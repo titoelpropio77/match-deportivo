@@ -7,10 +7,12 @@ class DashboardHeader extends StatelessWidget {
     required this.location,
     required this.onNotificationsTap,
     required this.onAvatarTap,
+    this.photoUrl,
     super.key,
   });
 
   final String userName;
+  final String? photoUrl;
   final String location;
   final VoidCallback onNotificationsTap;
   final VoidCallback onAvatarTap;
@@ -75,13 +77,18 @@ class DashboardHeader extends StatelessWidget {
               child: CircleAvatar(
                 radius: 20,
                 backgroundColor: colors.onPrimary,
-                child: Text(
-                  userName.isNotEmpty ? userName[0].toUpperCase() : '?',
-                  style: TextStyle(
-                    color: colors.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                backgroundImage: photoUrl != null && photoUrl!.isNotEmpty
+                    ? NetworkImage(photoUrl!)
+                    : null,
+                child: photoUrl != null && photoUrl!.isNotEmpty
+                    ? null
+                    : Text(
+                        userName.isNotEmpty ? userName[0].toUpperCase() : '?',
+                        style: TextStyle(
+                          color: colors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],

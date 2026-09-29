@@ -59,18 +59,42 @@ class AuthService {
     required String password,
     required String passwordConfirmation,
     String? phone,
+    required String gender,
+    String? photoPath,
+    List<int>? photoBytes,
+    String? photoFilename,
   }) async {
-    final response = await _client.post(
-      _uri('/api/register'),
-      headers: _headers(),
-      body: jsonEncode({
-        'name': name,
-        'email': email,
-        'password': password,
-        'password_confirmation': passwordConfirmation,
-        if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
-      }),
-    );
+    final request = http.MultipartRequest('POST', _uri('/api/register'));
+    request.headers['Accept'] = 'application/json';
+    request.fields.addAll({
+      'name': name,
+      'email': email,
+      'password': password,
+      'password_confirmation': passwordConfirmation,
+      if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      'gender': gender,
+    });
+
+    if (photoPath != null && photoPath.isNotEmpty) {
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'photo',
+          photoPath,
+          filename: photoFilename,
+        ),
+      );
+    } else if (photoBytes != null && photoBytes.isNotEmpty) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'photo',
+          photoBytes,
+          filename: photoFilename ?? 'avatar.jpg',
+        ),
+      );
+    }
+
+    final streamed = await _client.send(request);
+    final response = await http.Response.fromStream(streamed);
 
     return _decodeAuthResult(response);
   }

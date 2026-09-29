@@ -7,24 +7,54 @@ class MatchPlayersList extends StatelessWidget {
   const MatchPlayersList({
     required this.organizerName,
     required this.players,
+    this.organizerUserId,
+    this.isOrganizer = false,
+    this.isFull = false,
+    this.onViewPlayer,
+    this.onRemovePlayer,
+    this.onAddPlayer,
+    this.onAddToReserve,
     super.key,
   });
 
   final String organizerName;
+  final int? organizerUserId;
   final List<MatchPlayerModel> players;
+  final bool isOrganizer;
+  final bool isFull;
+  final ValueChanged<MatchPlayerModel>? onViewPlayer;
+  final ValueChanged<MatchPlayerModel>? onRemovePlayer;
+  final VoidCallback? onAddPlayer;
+  final VoidCallback? onAddToReserve;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final activePlayers = players
+        .where((player) => !player.isReserved && player.userId != organizerUserId)
+        .toList();
+    final reservedPlayers = players.where((player) => player.isReserved).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Jugadores',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Jugadores',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
               ),
+            ),
+            if (isOrganizer && !isFull)
+              TextButton.icon(
+                onPressed: onAddPlayer,
+                icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
+                label: const Text('Agregar jugador'),
+              ),
+          ],
         ),
         const SizedBox(height: 8),
         ListTile(
@@ -36,22 +66,101 @@ class MatchPlayersList extends StatelessWidget {
           title: Text(organizerName),
           subtitle: const Text('Organizador'),
         ),
-        for (final player in players)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: CircleAvatar(
-              backgroundColor: colors.secondaryContainer,
-              child: Text(_avatarLetter(player)),
-            ),
-            title: Text(player.user?.nickname ?? player.user?.name ?? 'Jugador'),
-            subtitle: player.user?.nickname != null ? Text(player.user!.name) : null,
+        for (final player in activePlayers)
+          _PlayerTile(
+            player: player,
+            isOrganizer: isOrganizer,
+            onViewPlayer: onViewPlayer,
+            onRemovePlayer: onRemovePlayer,
           ),
+        if (isFull || reservedPlayers.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Jugadores en reserva',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              if (isOrganizer && isFull)
+                TextButton.icon(
+                  onPressed: onAddToReserve,
+                  icon: const Icon(Icons.playlist_add_outlined, size: 18),
+                  label: const Text('Agregar a reserva'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (reservedPlayers.isEmpty)
+            Text(
+              'Nadie está en reserva todavía.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+            )
+          else
+            for (final entry in reservedPlayers.asMap().entries)
+              _PlayerTile(
+                player: entry.value,
+                isOrganizer: isOrganizer,
+                reservePosition: entry.key + 1,
+                onViewPlayer: onViewPlayer,
+                onRemovePlayer: onRemovePlayer,
+              ),
+        ],
       ],
     );
   }
+}
 
-  String _avatarLetter(MatchPlayerModel player) {
-    final label = player.user?.nickname ?? player.user?.name ?? '?';
-    return label.isNotEmpty ? label[0].toUpperCase() : '?';
+class _PlayerTile extends StatelessWidget {
+  const _PlayerTile({
+    required this.player,
+    required this.isOrganizer,
+    this.reservePosition,
+    this.onViewPlayer,
+    this.onRemovePlayer,
+  });
+
+  final MatchPlayerModel player;
+  final bool isOrganizer;
+  final int? reservePosition;
+  final ValueChanged<MatchPlayerModel>? onViewPlayer;
+  final ValueChanged<MatchPlayerModel>? onRemovePlayer;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final label = player.user?.nickname ?? player.user?.name ?? 'Jugador';
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor: player.isReserved ? colors.tertiaryContainer : colors.secondaryContainer,
+        child: Text(label.isNotEmpty ? label[0].toUpperCase() : '?'),
+      ),
+      title: Text(label),
+      subtitle: Text(
+        player.isReserved
+            ? 'Reserva #${reservePosition ?? '-'}'
+            : player.isPending
+                ? 'Pendiente de confirmación'
+                : (player.user?.nickname != null ? player.user!.name : 'Confirmado'),
+      ),
+      trailing: isOrganizer
+          ? player.isPending
+              ? TextButton(
+                  onPressed: onViewPlayer == null ? null : () => onViewPlayer!(player),
+                  child: const Text('Ver jugador'),
+                )
+              : TextButton(
+                  onPressed: onRemovePlayer == null ? null : () => onRemovePlayer!(player),
+                  child: const Text('Quitar jugador'),
+                )
+          : null,
+    );
   }
 }

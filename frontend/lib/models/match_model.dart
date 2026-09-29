@@ -7,7 +7,8 @@ import 'user_model.dart';
 enum MatchStatus {
   open('open'),
   full('full'),
-  cancelled('cancelled');
+  cancelled('cancelled'),
+  finished('finished');
 
   const MatchStatus(this.value);
 
@@ -19,6 +20,22 @@ enum MatchStatus {
       );
 }
 
+enum MatchGender {
+  mixed('mixed', 'Mixto'),
+  male('male', 'Masculino'),
+  female('female', 'Femenino');
+
+  const MatchGender(this.value, this.label);
+
+  final String value;
+  final String label;
+
+  static MatchGender fromValue(String value) => MatchGender.values.firstWhere(
+        (gender) => gender.value == value,
+        orElse: () => throw FormatException('Unknown match gender: $value'),
+      );
+}
+
 class MatchModel {
   const MatchModel({
     this.id,
@@ -26,6 +43,8 @@ class MatchModel {
     required this.sportId,
     required this.levelId,
     required this.courtId,
+    this.gender = MatchGender.mixed,
+    this.paymentQrUrl,
     this.sport,
     this.level,
     this.court,
@@ -45,6 +64,8 @@ class MatchModel {
   final int sportId;
   final int levelId;
   final int courtId;
+  final MatchGender gender;
+  final String? paymentQrUrl;
   final SportModel? sport;
   final MatchLevelModel? level;
   final CourtModel? court;
@@ -58,6 +79,8 @@ class MatchModel {
   final int maxPlayers;
   final MatchStatus status;
 
+  bool get isFull => status == MatchStatus.full || missingPlayers <= 0;
+
   factory MatchModel.fromJson(Map<String, dynamic> json) {
     return MatchModel(
       id: (json['id'] as num?)?.toInt(),
@@ -65,6 +88,10 @@ class MatchModel {
       sportId: (json['sport_id'] as num).toInt(),
       levelId: (json['level_id'] as num).toInt(),
       courtId: (json['court_id'] as num).toInt(),
+      gender: json['gender'] == null
+          ? MatchGender.mixed
+          : MatchGender.fromValue(json['gender'] as String),
+      paymentQrUrl: json['payment_qr_url'] as String?,
       sport: json['sport'] != null
           ? SportModel.fromJson(json['sport'] as Map<String, dynamic>)
           : null,
@@ -99,6 +126,8 @@ class MatchModel {
       'sport_id': sportId,
       'level_id': levelId,
       'court_id': courtId,
+      'gender': gender.value,
+      if (paymentQrUrl != null) 'payment_qr_url': paymentQrUrl,
       'scheduled_at': scheduledAt.toIso8601String(),
       'start_time': startTime.toIso8601String(),
       'end_time': endTime.toIso8601String(),
