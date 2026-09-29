@@ -1,0 +1,41 @@
+body, .main-sidebar, .brand-link { font-family: 'Poppins', 'Source Sans Pro', sans-serif; }
+
+.content-header .page-title { font-size: 1.9rem; font-weight: 400; margin: 0; }
+.content-header .page-subtitle { font-size: 1.35rem; color: #495057; margin-left: .35rem; }
+
+.brand-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 33px; height: 33px; background: #007bff; color: #fff; font-size: 1rem;
+}
+
+.avatar-circle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #ced4da; color: #fff; font-weight: 600;
+}
+
+/* Card with tabs on the left and table toolbar on the right, as in the reference design. */
+.card-tabs-toolbar .card-header { display: flex; flex-wrap: wrap; align-items: center; padding-bottom: 0; border-bottom: 1px solid #dee2e6; }
+.card-tabs-toolbar .card-header .nav-tabs { border-bottom: 0; }
+.card-tabs-toolbar .card-header .nav-link { color: #007bff; }
+.card-tabs-toolbar .card-header .nav-link.active { color: #212529; }
+.table-toolbar .dt-buttons .btn { color: #007bff; padding: .375rem .5rem; }
+.table-toolbar .dt-buttons .btn:hover { text-decoration: none; color: #0056b3; }
+
+.email-chip {
+    display: inline-block; padding: .2rem .5rem; border: 1px solid #adb5bd; border-radius: 3px;
+    color: #495057; white-space: nowrap;
+}
+.email-chip:hover { color: #007bff; border-color: #007bff; text-decoration: none; }
+
+.table td, .table th { vertical-align: middle; }
+.action-buttons { white-space: nowrap; }
+.action-buttons .btn-link { padding: .15rem .3rem; }
+
+.permission-matrix tr.dtrg-group td { background: #e9ecef !important; font-weight: 600; }
+.permission-matrix .custom-control { display: inline-block; }
+
+.settings-nav .list-group-item.active { background: transparent; color: #007bff; border-color: rgba(0,0,0,.125); }
+.settings-nav .list-group-item { border-left: 0; border-right: 0; }
+
+.login-page { background: linear-gradient(135deg, #1f2d3d 0%, #007bff 100%); }
