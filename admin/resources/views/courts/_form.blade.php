@@ -6,7 +6,7 @@
         <input id="name" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $court->name) }}" required>
     </div>
     <div class="col-md-6 form-group">
-        <label for="owner_id">Partner (dueño de la cancha)</label>
+        <label for="owner_id">Partner (dueño del centro deportivo)</label>
         @can('courts.view_all')
             <select id="owner_id" name="owner_id" class="form-control @error('owner_id') is-invalid @enderror">
                 <option value="">— Sin asignar —</option>
@@ -14,9 +14,9 @@
                     <option value="{{ $owner->id }}" @selected((string) old('owner_id', $court->owner_id) === (string) $owner->id)>{{ $owner->name }} ({{ $owner->email }})</option>
                 @endforeach
             </select>
-            <small class="text-muted">Usuarios con rol <code>partner</code>. El partner solo verá y administrará sus canchas.</small>
+            <small class="text-muted">Usuarios con rol <code>partner</code>. El partner solo verá y administrará sus centros deportivos.</small>
         @else
-            <input class="form-control" value="{{ $court->owner?->name ?? auth()->user()->name }}" disabled>
+            <input class="form-control" value="{{ $court->exists ? ($court->owner?->name ?? '—') : auth()->user()->name }}" disabled>
         @endcan
     </div>
     <div class="col-md-4 form-group">
@@ -62,3 +62,5 @@
     @endforeach
 </div>
 
+
+@include('courts.partials.photos-input')

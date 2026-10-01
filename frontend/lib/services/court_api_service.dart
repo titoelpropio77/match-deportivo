@@ -30,9 +30,15 @@ class CourtApiService {
   String get baseUrl => _baseUrl;
   String? get token => _token;
 
-  Future<List<CourtModel>> list() async {
+  /// Sports centers; [search] filters by name, address or city on the server.
+  Future<List<CourtModel>> list({String? search}) async {
+    final query = <String, String>{
+      if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+    };
     final response = await _client.get(
-      Uri.parse('$_baseUrl/api/courts'),
+      Uri.parse('$_baseUrl/api/courts').replace(
+        queryParameters: query.isEmpty ? null : query,
+      ),
       headers: _headers(),
     );
     final decoded = response.body.isEmpty
@@ -105,6 +111,37 @@ class CourtApiService {
     );
     final decoded = _decode(response);
     return CourtReservationModel.fromJson(decoded['data'] as Map<String, dynamic>);
+  }
+
+  /// Reservations of the signed-in user, upcoming first.
+  Future<List<CourtReservationModel>> myReservations() async {
+    final response = await _client.get(
+      Uri.parse('$_baseUrl/api/court-reservations'),
+      headers: _headers(),
+    );
+    final decoded = _decode(response);
+    return (decoded['data'] as List)
+        .map((item) => CourtReservationModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Simulated QR payment; the backend marks the reservation as paid.
+  Future<CourtReservationModel> pay(int reservationId) async {
+    final response = await _client.post(
+      Uri.parse('$_baseUrl/api/court-reservations/$reservationId/pay'),
+      headers: _headers(),
+    );
+    final decoded = _decode(response);
+    return CourtReservationModel.fromJson(decoded['data'] as Map<String, dynamic>);
+  }
+
+  /// Releases an unpaid reservation so the hour becomes free again.
+  Future<void> cancelReservation(int reservationId) async {
+    final response = await _client.post(
+      Uri.parse('$_baseUrl/api/court-reservations/$reservationId/cancel'),
+      headers: _headers(),
+    );
+    _decode(response);
   }
 
   Map<String, dynamic> _decode(http.Response response) {

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\CourtController;
 use App\Http\Controllers\CourtFieldController;
+use App\Http\Controllers\CourtManagerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Settings\PermissionController;
 use App\Http\Controllers\Settings\RoleController;
@@ -24,7 +25,7 @@ Route::middleware('auth')->group(function () {
         ->middleware('permission:dashboard.index')
         ->name('dashboard');
 
-    // Canchas
+    // Centros deportivos
     Route::get('/courts/data', [CourtController::class, 'data'])->middleware('permission:courts.index')->name('courts.data');
     Route::get('/courts', [CourtController::class, 'index'])->middleware('permission:courts.index')->name('courts.index');
     Route::get('/courts/create', [CourtController::class, 'create'])->middleware('permission:courts.store')->name('courts.create');
@@ -37,6 +38,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/courts/{court}/fields', [CourtFieldController::class, 'store'])->middleware('permission:court_fields.store')->name('courts.fields.store');
     Route::put('/courts/{court}/fields/{field}', [CourtFieldController::class, 'update'])->middleware('permission:court_fields.update')->scopeBindings()->name('courts.fields.update');
     Route::delete('/courts/{court}/fields/{field}', [CourtFieldController::class, 'destroy'])->middleware('permission:court_fields.destroy')->scopeBindings()->name('courts.fields.destroy');
+
+    Route::post('/courts/{court}/managers', [CourtManagerController::class, 'store'])->middleware('permission:courts.managers')->name('courts.managers.store');
+    Route::delete('/courts/{court}/managers/{manager}', [CourtManagerController::class, 'destroy'])->middleware('permission:courts.managers')->name('courts.managers.destroy');
 
     // Usuarios
     Route::get('/users/data', [UserController::class, 'data'])->middleware('permission:users.index')->name('users.data');

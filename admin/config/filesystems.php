@@ -47,6 +47,16 @@ return [
             'report' => false,
         ],
 
+        // The API backend's public disk: court photos uploaded here are served by the backend to the app.
+        'backend_public' => [
+            'driver' => 'local',
+            'root' => env('BACKEND_PUBLIC_STORAGE', base_path('../backend/storage/app/public')),
+            'url' => rtrim(env('BACKEND_URL', 'http://localhost:8000'), '/').'/storage',
+            'visibility' => 'public',
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

@@ -25,6 +25,11 @@ class CourtReservationResource extends JsonResource
                 ? (float) $this->field->price_per_hour
                 : null,
             'status' => $this->status,
+            'payment_reference' => sprintf('MD-%06d', $this->id),
+            'payment_expires_at' => $this->created_at
+                ?->copy()
+                ->addMinutes(\App\Models\CourtReservation::PAYMENT_WINDOW_MINUTES)
+                ->toIso8601String(),
             'sport' => new SportResource($this->whenLoaded('sport')),
             'field' => new CourtFieldResource($this->whenLoaded('field')),
         ];

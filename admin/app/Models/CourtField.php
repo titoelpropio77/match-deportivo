@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\CourtFieldFeature;
+use Illuminate\Database\Eloquent\Casts\AsEnumCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -16,6 +18,9 @@ class CourtField extends Model
         'court_id',
         'name',
         'price_per_hour',
+        'dimensions',
+        'description',
+        'features',
     ];
 
     /**
@@ -25,6 +30,7 @@ class CourtField extends Model
     {
         return [
             'price_per_hour' => 'decimal:2',
+            'features' => AsEnumCollection::of(CourtFieldFeature::class),
         ];
     }
 

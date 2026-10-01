@@ -52,6 +52,9 @@ services:
       DB_PASSWORD: match_deportivo
       SESSION_DRIVER: file
       CACHE_STORE: file
+      # Court photos go to the backend's public disk so the API can serve them to the app.
+      BACKEND_URL: http://localhost:8000
+      BACKEND_PUBLIC_STORAGE: /var/www/backend-storage
     depends_on:
       db:
         condition: service_healthy
@@ -60,6 +63,7 @@ services:
     volumes:
       - ../admin:/var/www/html
       - /var/www/html/vendor
+      - ./storage/app/public:/var/www/backend-storage
 
   db:
     image: postgres:16-alpine

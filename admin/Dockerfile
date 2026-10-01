@@ -5,6 +5,9 @@ RUN apt-get update \
     && docker-php-ext-install dom pdo_pgsql \
     && rm -rf /var/lib/apt/lists/*
 
+# Court gallery: up to 10 photos of 5 MB per request (validated in CourtController).
+RUN printf 'upload_max_filesize=8M\npost_max_size=64M\n' > /usr/local/etc/php/conf.d/uploads.ini
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html

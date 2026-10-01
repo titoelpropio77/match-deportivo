@@ -43,6 +43,7 @@ class CourtModel {
     required this.name,
     required this.address,
     this.ownerId,
+    this.cityName,
     this.latitude,
     this.longitude,
     this.openingTime,
@@ -56,6 +57,9 @@ class CourtModel {
   final int? ownerId;
   final String name;
   final String address;
+
+  /// Name of the city the center belongs to (`city.name` in the API).
+  final String? cityName;
   final double? latitude;
   final double? longitude;
   final String? openingTime;
@@ -72,6 +76,7 @@ class CourtModel {
       ownerId: (json['owner_id'] as num?)?.toInt(),
       name: json['name'] as String,
       address: json['address'] as String,
+      cityName: (json['city'] as Map<String, dynamic>?)?['name'] as String?,
       latitude: _toDouble(json['latitude']),
       longitude: _toDouble(json['longitude']),
       openingTime: json['opening_time'] as String?,

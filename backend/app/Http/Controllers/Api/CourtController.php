@@ -11,17 +11,21 @@ use Illuminate\Http\Request;
 class CourtController extends Controller
 {
     /**
-     * List courts with their city, sports, photos and physical courts, optionally filtered by city.
+     * List courts with their city, sports, photos and physical courts, optionally filtered by city
+     * and searched by name, address or city (`search`, case and accent insensitive; max 20 results).
      */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'city_id' => ['sometimes', 'integer', 'exists:cities,id'],
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
         ]);
+        $search = trim((string) ($validated['search'] ?? ''));
 
         $courts = Court::query()
             ->with(['city', 'sports', 'photos', 'fields.sports'])
             ->when(isset($validated['city_id']), fn ($query) => $query->where('city_id', $validated['city_id']))
+            ->when($search !== '', fn ($query) => $query->search($search)->limit(20))
             ->orderBy('name')
             ->get();
 

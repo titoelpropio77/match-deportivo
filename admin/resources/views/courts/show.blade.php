@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 
 @section('title', $court->name)
-@section('page_title', 'Canchas')
+@section('page_title', 'Centros deportivos')
 @section('page_subtitle', $court->name)
 @section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{ route('courts.index') }}">Canchas</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('courts.index') }}">Centros deportivos</a></li>
     <li class="breadcrumb-item active">Detalle</li>
 @endsection
 
@@ -47,12 +47,30 @@
             </div>
         </div>
         <div class="col-lg-7">
+            <div class="card card-info card-outline">
+                <div class="card-header"><h3 class="card-title">Galería de fotos</h3></div>
+                <div class="card-body">
+                    @if ($court->photos->isEmpty())
+                        <span class="text-muted">Este centro deportivo aún no tiene fotos.</span>
+                    @else
+                        <div class="d-flex flex-wrap" style="gap: .75rem;">
+                            @foreach ($court->photos as $photo)
+                                <a href="{{ $photo->src }}" target="_blank" rel="noopener">
+                                    <img src="{{ $photo->src }}" alt="Foto de {{ $court->name }}" loading="lazy"
+                                         class="rounded" style="width: 140px; height: 105px; object-fit: cover;">
+                                </a>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+            </div>
             <div class="card card-success card-outline">
                 <div class="card-header"><h3 class="card-title">Canchas físicas</h3></div>
                 <div class="card-body p-0">
                     @include('courts.partials.fields-table', ['editable' => false])
                 </div>
             </div>
+            @include('courts.partials.managers', ['editable' => false])
         </div>
     </div>
 @endsection

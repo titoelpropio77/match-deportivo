@@ -4,19 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Models\City;
 use App\Models\Court;
+use App\Models\CourtPhoto;
 use App\Models\Sport;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Yajra\DataTables\Facades\DataTables;
 
 class CourtController extends Controller
 {
+    private const MAX_PHOTOS = 10;
+
     public function index(): View
     {
         return view('courts.index');
@@ -73,22 +78,23 @@ class CourtController extends Controller
             $validated['owner_id'] = $request->user()->id;
         }
 
-        $court = DB::transaction(function () use ($validated): Court {
+        $court = DB::transaction(function () use ($validated, $request): Court {
             $court = Court::query()->create($validated);
             $court->sports()->sync($validated['sports'] ?? []);
+            $this->storePhotos($court, $request->file('photos', []));
 
             return $court;
         });
 
         return redirect()->route('courts.edit', $court)
-            ->with('success', "Cancha {$court->name} creada. Ahora agrega sus canchas físicas.");
+            ->with('success', "Centro deportivo {$court->name} creado. Ahora agrega sus canchas físicas.");
     }
 
     public function show(Court $court): View
     {
         Gate::authorize('manage', $court);
 
-        $court->load(['owner', 'city', 'sports', 'fields.sports'])->loadCount('matches');
+        $court->load(['owner', 'city', 'sports', 'photos', 'managers', 'fields.sports'])->loadCount('matches');
 
         return view('courts.show', ['court' => $court]);
     }
@@ -97,7 +103,7 @@ class CourtController extends Controller
     {
         Gate::authorize('manage', $court);
 
-        $court->load(['sports', 'fields.sports']);
+        $court->load(['owner', 'sports', 'photos', 'managers', 'fields.sports']);
 
         return view('courts.edit', [
             'court' => $court,
@@ -115,12 +121,23 @@ class CourtController extends Controller
             unset($validated['owner_id']);
         }
 
-        DB::transaction(function () use ($court, $validated): void {
+        $removed = $court->photos()->whereIn('id', $validated['remove_photos'] ?? [])->get();
+        $newPhotos = $request->file('photos', []);
+        if ($court->photos()->count() - $removed->count() + count($newPhotos) > self::MAX_PHOTOS) {
+            throw ValidationException::withMessages([
+                'photos' => 'La galería admite como máximo '.self::MAX_PHOTOS.' fotos; quita alguna antes de subir más.',
+            ]);
+        }
+
+        DB::transaction(function () use ($court, $validated, $removed, $newPhotos): void {
             $court->update($validated);
             $court->sports()->sync($validated['sports'] ?? []);
+            CourtPhoto::query()->whereKey($removed->modelKeys())->delete();
+            $this->storePhotos($court, $newPhotos);
         });
+        $removed->each->deleteFile();
 
-        return redirect()->route('courts.index')->with('success', "Cancha {$court->name} actualizada.");
+        return redirect()->route('courts.index')->with('success', "Centro deportivo {$court->name} actualizado.");
     }
 
     public function destroy(Court $court): JsonResponse
@@ -131,13 +148,15 @@ class CourtController extends Controller
         $hasMatches = DB::table('matches')->where('court_id', $court->id)->exists();
         if ($hasMatches) {
             return response()->json([
-                'message' => 'No se puede eliminar: la cancha tiene partidos registrados.',
+                'message' => 'No se puede eliminar: el centro deportivo tiene partidos registrados.',
             ], 422);
         }
 
+        $photos = $court->photos()->get();
         $court->delete();
+        $photos->each->deleteFile();
 
-        return response()->json(['message' => "Cancha {$court->name} eliminada."]);
+        return response()->json(['message' => "Centro deportivo {$court->name} eliminado."]);
     }
 
     /**
@@ -156,7 +175,16 @@ class CourtController extends Controller
             'owner_id' => ['nullable', 'integer', 'exists:users,id'],
             'sports' => ['sometimes', 'array'],
             'sports.*' => ['integer', 'exists:sports,id'],
-        ], [], [
+            'photos' => ['sometimes', 'array', 'max:'.self::MAX_PHOTOS],
+            'photos.*' => ['image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
+            'remove_photos' => ['sometimes', 'array'],
+            'remove_photos.*' => ['integer'],
+        ], [
+            'photos.*.image' => 'Cada archivo de la galería debe ser una imagen.',
+            'photos.*.mimes' => 'Las fotos deben ser JPG, PNG o WEBP.',
+            'photos.*.max' => 'Cada foto puede pesar como máximo 5 MB.',
+            'photos.*.uploaded' => 'No se pudo subir una de las fotos (¿pesa más de 5 MB?).',
+        ], [
             'name' => 'nombre',
             'city_id' => 'ciudad',
             'address' => 'dirección',
@@ -166,7 +194,25 @@ class CourtController extends Controller
             'closing_time' => 'hora de cierre',
             'owner_id' => 'partner (dueño)',
             'sports' => 'deportes',
+            'photos' => 'galería de fotos',
         ]);
+    }
+
+    /**
+     * Saves the uploads on the backend's public disk, appended after the existing photos.
+     *
+     * @param  array<int, UploadedFile>  $files
+     */
+    private function storePhotos(Court $court, array $files): void
+    {
+        $order = (int) $court->photos()->max('order');
+
+        foreach ($files as $file) {
+            $court->photos()->create([
+                'url' => $file->store("courts/{$court->id}", CourtPhoto::DISK),
+                'order' => ++$order,
+            ]);
+        }
     }
 
     /**

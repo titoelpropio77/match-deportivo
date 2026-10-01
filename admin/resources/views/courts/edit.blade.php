@@ -1,10 +1,10 @@
 @extends('layouts.admin')
 
-@section('title', 'Editar cancha')
-@section('page_title', 'Canchas')
+@section('title', 'Editar centro deportivo')
+@section('page_title', 'Centros deportivos')
 @section('page_subtitle', 'Editar '.$court->name)
 @section('breadcrumb')
-    <li class="breadcrumb-item"><a href="{{ route('courts.index') }}">Canchas</a></li>
+    <li class="breadcrumb-item"><a href="{{ route('courts.index') }}">Centros deportivos</a></li>
     <li class="breadcrumb-item active">Editar</li>
 @endsection
 
@@ -13,7 +13,7 @@
         <div class="col-lg-7">
             <div class="card card-primary card-outline">
                 <div class="card-header"><h3 class="card-title">Datos del complejo</h3></div>
-                <form method="POST" action="{{ route('courts.update', $court) }}">
+                <form method="POST" action="{{ route('courts.update', $court) }}" enctype="multipart/form-data">
                     @method('PUT')
                     <div class="card-body">
                         @include('courts._form')
@@ -42,6 +42,7 @@
                     Cada cancha física se reserva por hora; una reserva la bloquea para todos sus deportes.
                 </div>
             </div>
+            @include('courts.partials.managers', ['editable' => true])
         </div>
     </div>
 
@@ -65,6 +66,26 @@
                         <div class="form-group">
                             <label for="field_price">Precio por hora (Bs) *</label>
                             <input id="field_price" name="price_per_hour" type="number" step="0.01" min="0" class="form-control" value="{{ $errors->field->any() ? old('price_per_hour') : '' }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="field_dimensions">Dimensiones</label>
+                            <input id="field_dimensions" name="dimensions" maxlength="50" class="form-control" value="{{ $errors->field->any() ? old('dimensions') : '' }}" placeholder="Ej: 4x4, 40x20 m">
+                        </div>
+                        <div class="form-group">
+                            <label for="field_description">Descripción</label>
+                            <textarea id="field_description" name="description" rows="3" maxlength="2000" class="form-control" placeholder="Detalles de la cancha: tipo de piso, redes, estado, etc.">{{ $errors->field->any() ? old('description') : '' }}</textarea>
+                        </div>
+                        <label>Opciones adicionales</label>
+                        @php($oldFieldFeatures = $errors->field->any() ? old('features', []) : [])
+                        <div class="row mb-3">
+                            @foreach (\App\Enums\CourtFieldFeature::cases() as $feature)
+                                <div class="col-6">
+                                    <div class="custom-control custom-checkbox">
+                                        <input type="checkbox" class="custom-control-input field-feature" id="field_feature_{{ $feature->value }}" name="features[]" value="{{ $feature->value }}" @checked(in_array($feature->value, $oldFieldFeatures, true))>
+                                        <label class="custom-control-label font-weight-normal" for="field_feature_{{ $feature->value }}"><i class="{{ $feature->icon() }} text-muted mr-1"></i>{{ $feature->label() }}</label>
+                                    </div>
+                                </div>
+                            @endforeach
                         </div>
                         <label>Deportes *</label>
                         @php($oldFieldSports = $errors->field->any() ? array_map('intval', old('sports', [])) : [])
@@ -105,6 +126,11 @@
                 if (field) {
                     $('#field_name').val(field.name);
                     $('#field_price').val(field.price_per_hour);
+                    $('#field_dimensions').val(field.dimensions || '');
+                    $('#field_description').val(field.description || '');
+                    $('.field-feature').each(function () {
+                        this.checked = (field.features || []).includes(this.value);
+                    });
                     $('.field-sport').each(function () {
                         this.checked = field.sports.map(Number).includes(Number(this.value));
                     });
@@ -114,7 +140,7 @@
 
             $('[data-add-field]').on('click', function () {
                 $form.find('.alert').remove();
-                openModal({ name: '', price_per_hour: '', sports: [] });
+                openModal({ name: '', price_per_hour: '', dimensions: '', description: '', features: [], sports: [] });
             });
 
             $('[data-edit-field]').on('click', function () {

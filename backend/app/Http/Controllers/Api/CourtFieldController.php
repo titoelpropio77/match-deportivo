@@ -71,12 +71,20 @@ class CourtFieldController extends Controller
         $courtField->load(['sports', 'court.city']);
         $slots = $courtField->slotsForDate($validated['date']);
 
+        // Other bookable courts of the same sports center, so the app can switch between them.
+        $venueFields = CourtField::query()
+            ->with('sports')
+            ->where('court_id', $courtField->court_id)
+            ->orderBy('name')
+            ->get();
+
         return response()->json([
             'data' => [
                 'field' => new CourtFieldResource($courtField),
                 'date' => $validated['date'],
                 'slots' => $slots,
                 'free_ranges' => CourtField::freeRanges($slots),
+                'venue_fields' => CourtFieldResource::collection($venueFields),
             ],
         ]);
     }
@@ -118,10 +126,16 @@ class CourtFieldController extends Controller
                 ]);
             }
 
+            if ($start->lte(now())) {
+                throw ValidationException::withMessages([
+                    'start_time' => 'Ese horario ya pasó.',
+                ]);
+            }
+
             $overlaps = CourtReservation::query()
                 ->where('court_field_id', $field->id)
                 ->whereDate('reserved_on', $validated['date'])
-                ->where('status', '!=', 'cancelled')
+                ->active()
                 ->lockForUpdate()
                 ->get()
                 ->contains(fn (CourtReservation $existing): bool => $existing->overlaps($start, $end));
@@ -143,7 +157,7 @@ class CourtFieldController extends Controller
                 'ends_at' => $end->format('H:i:s'),
                 'hours' => $validated['hours'],
                 'amount' => $amount,
-                'status' => 'pending_payment',
+                'status' => CourtReservation::STATUS_PENDING_PAYMENT,
             ]);
         });
 
@@ -152,5 +166,79 @@ class CourtFieldController extends Controller
         return response()->json([
             'data' => new CourtReservationResource($reservation),
         ], 201);
+    }
+
+    /**
+     * Reservations of the current user: upcoming ones first (soonest first), then past ones (latest first).
+     * Cancelled and expired unpaid reservations are left out.
+     */
+    public function mine(Request $request): JsonResponse
+    {
+        $now = now();
+
+        $reservations = CourtReservation::query()
+            ->with(['field.court.photos', 'field.court.city', 'field.sports', 'sport'])
+            ->where('user_id', $request->user()->id)
+            ->active()
+            ->get()
+            ->map(fn (CourtReservation $reservation): array => [
+                $reservation,
+                Carbon::parse($reservation->reserved_on->toDateString().' '.$reservation->ends_at),
+            ]);
+
+        [$upcoming, $past] = $reservations->partition(fn (array $item): bool => $item[1]->gt($now));
+
+        $ordered = $upcoming->sortBy(fn (array $item) => $item[1]->timestamp)
+            ->concat($past->sortByDesc(fn (array $item) => $item[1]->timestamp))
+            ->map(fn (array $item): CourtReservation => $item[0])
+            ->values();
+
+        return response()->json([
+            'data' => CourtReservationResource::collection($ordered),
+        ]);
+    }
+
+    /**
+     * Simulated QR payment: confirms a pending reservation of the current user.
+     * TODO: replace with the bank QR webhook once the payment provider is connected.
+     */
+    public function pay(Request $request, CourtReservation $reservation): JsonResponse
+    {
+        abort_unless($reservation->user_id === $request->user()->id, 403);
+
+        if ($reservation->status === CourtReservation::STATUS_PAID) {
+            $reservation->load(['field.court', 'sport']);
+
+            return response()->json(['data' => new CourtReservationResource($reservation)]);
+        }
+
+        if ($reservation->status !== CourtReservation::STATUS_PENDING_PAYMENT || $reservation->paymentExpired()) {
+            throw ValidationException::withMessages([
+                'reservation' => 'La reserva expiró o fue cancelada. Vuelve a elegir el horario.',
+            ]);
+        }
+
+        $reservation->update(['status' => CourtReservation::STATUS_PAID]);
+        $reservation->load(['field.court', 'sport']);
+
+        return response()->json(['data' => new CourtReservationResource($reservation)]);
+    }
+
+    /**
+     * Releases an unpaid reservation when the user leaves the payment screen.
+     */
+    public function cancel(Request $request, CourtReservation $reservation): JsonResponse
+    {
+        abort_unless($reservation->user_id === $request->user()->id, 403);
+
+        if ($reservation->status !== CourtReservation::STATUS_PENDING_PAYMENT) {
+            throw ValidationException::withMessages([
+                'reservation' => 'Solo se pueden cancelar reservas pendientes de pago.',
+            ]);
+        }
+
+        $reservation->update(['status' => CourtReservation::STATUS_CANCELLED]);
+
+        return response()->json(null, 204);
     }
 }

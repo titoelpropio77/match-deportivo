@@ -33,6 +33,16 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    // The courts only appear once a sports center is searched and chosen.
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Centro / complejo deportivo'),
+      'arena',
+    );
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Arena Norte').last);
+    await tester.pumpAndSettle();
   }
 
   testWidgets('labels the venue as sports center and lists its courts', (tester) async {
@@ -116,7 +126,7 @@ class _FakeCourtApiService extends CourtApiService {
   _FakeCourtApiService() : super(baseUrl: 'http://test');
 
   @override
-  Future<List<CourtModel>> list() async => const [
+  Future<List<CourtModel>> list({String? search}) async => const [
         CourtModel(
           id: 1,
           name: 'Arena Norte',

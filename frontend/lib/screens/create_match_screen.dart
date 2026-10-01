@@ -44,11 +44,13 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
 
   List<SportModel> _sports = const [];
   List<MatchLevelModel> _levels = const [];
-  List<CourtModel> _courts = const [];
   int? _sportId;
   int? _levelId;
-  int? _courtId;
+  CourtModel? _selectedCourt;
   final Set<int> _selectedFieldIds = {};
+  bool _courtSearchHasNoResults = false;
+  bool _courtSearchFailed = false;
+  String _courtSearchText = '';
   MatchGender _gender = MatchGender.mixed;
   bool _loadingOptions = true;
   Object? _optionsError;
@@ -82,20 +84,16 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
       final results = await Future.wait([
         widget.sportApiService.list(),
         widget.matchLevelApiService.list(),
-        widget.courtApiService.list(),
       ]);
       if (!mounted) return;
 
       final sports = results[0] as List<SportModel>;
       final levels = results[1] as List<MatchLevelModel>;
-      final courts = results[2] as List<CourtModel>;
       setState(() {
         _sports = sports;
         _levels = levels;
-        _courts = courts;
         _sportId = sports.isNotEmpty ? sports.first.id : null;
         _levelId = levels.isNotEmpty ? levels.first.id : null;
-        _courtId = courts.isNotEmpty ? courts.first.id : null;
         _loadingOptions = false;
       });
     } catch (error) {
@@ -192,18 +190,49 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
 
   Future<bool?> _askJoinAsPlayer() => showCreateMatchJoinDialog(context);
 
-  CourtModel? get _selectedCourt {
-    for (final court in _courts) {
-      if (court.id == _courtId) return court;
-    }
-    return null;
-  }
-
   void _selectCourt(CourtModel court) {
     setState(() {
-      _courtId = court.id;
+      _selectedCourt = court;
       _selectedFieldIds.clear();
+      _courtSearchHasNoResults = false;
+      _courtSearchFailed = false;
     });
+  }
+
+  /// Searches the sports centers (`courts` table) on the API by name, address or city.
+  /// Debounced: only the text still in the field after a short pause is sent.
+  Future<Iterable<CourtModel>> _searchCourts(String text) async {
+    _courtSearchText = text;
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (!mounted || text != _courtSearchText) return const [];
+
+    try {
+      final courts = await widget.courtApiService.list(search: text);
+      if (!mounted || text != _courtSearchText) return const [];
+      setState(() {
+        _courtSearchHasNoResults = text.trim().isNotEmpty && courts.isEmpty;
+        _courtSearchFailed = false;
+      });
+      return courts;
+    } catch (_) {
+      if (mounted && text == _courtSearchText) {
+        setState(() {
+          _courtSearchHasNoResults = false;
+          _courtSearchFailed = true;
+        });
+      }
+      return const [];
+    }
+  }
+
+  /// Typing after choosing a center drops the choice, so the text always matches the selection.
+  void _onCourtSearchChanged(String text) {
+    if (_selectedCourt != null && text != _selectedCourt!.name) {
+      setState(() {
+        _selectedCourt = null;
+        _selectedFieldIds.clear();
+      });
+    }
   }
 
   void _toggleField(int fieldId, bool selected) {
@@ -218,7 +247,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
 
   Future<void> _submit() async {
     final isValid = _formKey.currentState?.validate() ?? false;
-    if (_sportId == null || _levelId == null || _courtId == null) {
+    if (_sportId == null || _levelId == null || _selectedCourt == null) {
       _showMessage(
         'Selecciona el deporte, el nivel y el centro deportivo.',
         isError: true,
@@ -255,7 +284,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
       await widget.matchApiService.createMatch(
         sportId: _sportId!,
         levelId: _levelId!,
-        courtId: _courtId!,
+        courtId: _selectedCourt!.id,
         courtFieldIds: _selectedFieldIds.toList(),
         gender: _gender.value,
         startTime: _startTime!,
@@ -398,19 +427,8 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Autocomplete<CourtModel>(
-            initialValue: TextEditingValue(
-              text: _courts.isNotEmpty ? _courts.first.name : '',
-            ),
             displayStringForOption: (court) => court.name,
-            optionsBuilder: (TextEditingValue value) {
-              final query = value.text.trim().toLowerCase();
-              if (query.isEmpty) return _courts;
-              return _courts.where(
-                (court) =>
-                    court.name.toLowerCase().contains(query) ||
-                    court.address.toLowerCase().contains(query),
-              );
-            },
+            optionsBuilder: (TextEditingValue value) => _searchCourts(value.text),
             optionsViewBuilder: (context, onSelected, options) {
               final optionsList = options.toList();
               return Align(
@@ -424,6 +442,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                       maxWidth: 400,
                     ),
                     child: ListView.builder(
+                      key: const Key('court-search-options'),
                       padding: EdgeInsets.zero,
                       shrinkWrap: true,
                       itemCount: optionsList.length,
@@ -432,7 +451,7 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                         return ListTile(
                           title: Text(court.name),
                           subtitle: Text(
-                            court.address,
+                            [court.address, ?court.cityName].join(' · '),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -450,14 +469,32 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
                   return TextFormField(
                     controller: controller,
                     focusNode: focusNode,
-                    decoration: const InputDecoration(
+                    onChanged: _onCourtSearchChanged,
+                    // Search box, not personal data: without this the browser/OS offers the user's saved name.
+                    autofillHints: null,
+                    enableSuggestions: false,
+                    autocorrect: false,
+                    // With a center chosen, select its name so typing starts a new search.
+                    onTap: () {
+                      if (_selectedCourt != null) {
+                        controller.selection = TextSelection(
+                          baseOffset: 0,
+                          extentOffset: controller.text.length,
+                        );
+                      }
+                    },
+                    decoration: InputDecoration(
                       labelText: 'Centro / complejo deportivo',
-                      hintText:
-                          'Buscar centro deportivo por nombre o dirección',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.search),
+                      hintText: 'Buscar por nombre, dirección o ciudad',
+                      helperText: _courtSearchFailed
+                          ? 'No pudimos buscar centros deportivos. Intenta de nuevo.'
+                          : _courtSearchHasNoResults
+                              ? 'No se encontraron centros deportivos.'
+                              : null,
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.search),
                     ),
-                    validator: (_) => _courtId == null
+                    validator: (_) => _selectedCourt == null
                         ? 'Selecciona un centro deportivo.'
                         : null,
                   );
@@ -569,6 +606,9 @@ class _CreateMatchScreenState extends State<CreateMatchScreen> {
           const SizedBox(height: 8),
           TextField(
             controller: _playerSearchController,
+            autofillHints: null,
+            enableSuggestions: false,
+            autocorrect: false,
             decoration: InputDecoration(
               labelText: 'Buscar por nombre o email',
               border: const OutlineInputBorder(),

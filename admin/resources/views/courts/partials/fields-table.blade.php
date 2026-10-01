@@ -10,7 +10,22 @@
     <tbody>
     @forelse ($court->fields as $field)
         <tr>
-            <td>{{ $field->name }}</td>
+            <td>
+                {{ $field->name }}
+                @if ($field->dimensions)
+                    <small class="text-muted">· {{ $field->dimensions }}</small>
+                @endif
+                @if ($field->features?->isNotEmpty())
+                    <div>
+                        @foreach ($field->features as $feature)
+                            <span class="badge badge-light border" title="{{ $feature->label() }}"><i class="{{ $feature->icon() }} mr-1"></i>{{ $feature->label() }}</span>
+                        @endforeach
+                    </div>
+                @endif
+                @if ($field->description)
+                    <div class="small text-muted text-wrap" style="white-space: pre-line;">{{ \Illuminate\Support\Str::limit($field->description, 140) }}</div>
+                @endif
+            </td>
             <td>
                 @foreach ($field->sports as $sport)
                     <span class="badge badge-info">{{ $sport->name }}</span>
@@ -25,6 +40,9 @@
                                 'id' => $field->id,
                                 'name' => $field->name,
                                 'price_per_hour' => $field->price_per_hour,
+                                'dimensions' => $field->dimensions,
+                                'description' => $field->description,
+                                'features' => $field->features?->map->value->values() ?? [],
                                 'sports' => $field->sports->pluck('id'),
                                 'action' => route('courts.fields.update', [$court, $field]),
                             ];

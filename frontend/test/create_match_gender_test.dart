@@ -80,7 +80,7 @@ class _FakeCourtApiService extends CourtApiService {
   _FakeCourtApiService() : super(baseUrl: 'http://test');
 
   @override
-  Future<List<CourtModel>> list() async => const [
+  Future<List<CourtModel>> list({String? search}) async => const [
         CourtModel(id: 1, name: 'Arena Norte', address: 'Zona Norte'),
       ];
 }

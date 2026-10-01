@@ -16,20 +16,20 @@
         <li class="nav-item {{ $menuOpen('courts.*') }}">
             <a href="#" class="nav-link {{ $active('courts.*') }}">
                 <i class="nav-icon fas fa-map-marked-alt"></i>
-                <p>Canchas <i class="right fas fa-angle-left"></i></p>
+                <p>Centros deportivos <i class="right fas fa-angle-left"></i></p>
             </a>
             <ul class="nav nav-treeview">
                 @can('courts.index')
                     <li class="nav-item">
                         <a href="{{ route('courts.index') }}" class="nav-link {{ $active('courts.index', 'courts.show', 'courts.edit') }}">
-                            <i class="far fa-circle nav-icon"></i><p>Lista de canchas</p>
+                            <i class="far fa-circle nav-icon"></i><p>Lista de centros deportivos</p>
                         </a>
                     </li>
                 @endcan
                 @can('courts.store')
                     <li class="nav-item">
                         <a href="{{ route('courts.create') }}" class="nav-link {{ $active('courts.create') }}">
-                            <i class="far fa-circle nav-icon"></i><p>Crear cancha</p>
+                            <i class="far fa-circle nav-icon"></i><p>Crear centro deportivo</p>
                         </a>
                     </li>
                 @endcan

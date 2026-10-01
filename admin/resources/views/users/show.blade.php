@@ -19,7 +19,7 @@
                     <p>@include('users.partials.roles')</p>
                     <ul class="list-group list-group-unbordered mb-3 text-left">
                         <li class="list-group-item"><b>Partidos organizados</b> <span class="float-right">{{ $user->organized_matches_count }}</span></li>
-                        <li class="list-group-item"><b>Canchas a cargo</b> <span class="float-right">{{ $user->courts_count }}</span></li>
+                        <li class="list-group-item"><b>Centros deportivos a cargo</b> <span class="float-right">{{ $user->courts_count }}</span></li>
                     </ul>
                     @can('users.update')
                         <a href="{{ route('users.edit', $user) }}" class="btn btn-primary btn-block"><i class="fas fa-edit"></i> Editar</a>

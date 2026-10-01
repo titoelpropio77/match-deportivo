@@ -12,10 +12,21 @@ use App\Models\User;
 class CourtPolicy
 {
     /**
-     * Users with courts.view_all manage every court; the rest (partners) only the ones they own.
+     * Users with courts.view_all manage every court; partners the ones they own; managers the ones assigned to them.
      */
     public function manage(User $user, Court $court): bool
     {
-        return $user->can('courts.view_all') || $court->owner_id === $user->id;
+        return $user->can('courts.view_all')
+            || $court->owner_id === $user->id
+            || $court->managers()->whereKey($user->id)->exists();
+    }
+
+    /**
+     * Only platform staff and the venue owner assign managers (never another manager).
+     */
+    public function assignManagers(User $user, Court $court): bool
+    {
+        return $user->can('courts.managers')
+            && ($user->can('courts.view_all') || $court->owner_id === $user->id);
     }
 }

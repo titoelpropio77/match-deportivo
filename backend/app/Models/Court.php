@@ -2,10 +2,12 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Court extends Model
 {
@@ -55,6 +57,22 @@ class Court extends Model
     public function sports(): BelongsToMany
     {
         return $this->belongsToMany(Sport::class, 'court_sport');
+    }
+
+    /**
+     * Courts whose name, address or city contains the term, ignoring case and (on PostgreSQL) accents.
+     */
+    public function scopeSearch(Builder $query, string $term): void
+    {
+        $normalize = fn (string $column): string => $query->getConnection()->getDriverName() === 'pgsql'
+            ? "translate(lower({$column}), 'áàäéèëíìïóòöúùüñ', 'aaaeeeiiiooouuun')"
+            : "lower({$column})";
+        $like = '%'.Str::lower(Str::ascii($term)).'%';
+
+        $query->where(fn (Builder $matches) => $matches
+            ->whereRaw($normalize('courts.name').' like ?', [$like])
+            ->orWhereRaw($normalize('courts.address').' like ?', [$like])
+            ->orWhereHas('city', fn (Builder $city) => $city->whereRaw($normalize('cities.name').' like ?', [$like])));
     }
 
     /**

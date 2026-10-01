@@ -37,12 +37,15 @@ class Court extends Model
     }
 
     /**
-     * Courts the user may see: all with courts.view_all, otherwise only the ones they own (partner).
+     * Courts the user may see: all with courts.view_all, otherwise the ones they own (partner)
+     * or were assigned to as manager.
      */
     public function scopeVisibleTo(Builder $query, User $user): void
     {
         if (! $user->can('courts.view_all')) {
-            $query->where('courts.owner_id', $user->id);
+            $query->where(fn (Builder $scoped) => $scoped
+                ->where('courts.owner_id', $user->id)
+                ->orWhereHas('managers', fn (Builder $managers) => $managers->whereKey($user->id)));
         }
     }
 
@@ -64,6 +67,16 @@ class Court extends Model
     public function fields(): HasMany
     {
         return $this->hasMany(CourtField::class)->orderBy('name');
+    }
+
+    public function managers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'court_managers')->withTimestamps()->orderBy('name');
+    }
+
+    public function photos(): HasMany
+    {
+        return $this->hasMany(CourtPhoto::class)->orderBy('order')->orderBy('id');
     }
 
     public function matches(): HasMany

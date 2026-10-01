@@ -48,5 +48,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->whereNumber('id')
         ->whereNumber('playerId');
     Route::get('/users/search', [UserController::class, 'search']);
+    Route::get('/court-reservations', [CourtFieldController::class, 'mine']);
     Route::post('/court-reservations', [CourtFieldController::class, 'store']);
+    Route::post('/court-reservations/{reservation}/pay', [CourtFieldController::class, 'pay']);
+    Route::post('/court-reservations/{reservation}/cancel', [CourtFieldController::class, 'cancel']);
 });

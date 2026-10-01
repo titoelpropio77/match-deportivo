@@ -29,7 +29,7 @@
              data-is-new="{{ $court->exists ? 0 : 1 }}"
              data-map-id="{{ config('services.google_maps.map_id') }}"></div>
         @if ($editable)
-            <small class="text-muted">Haz clic en el mapa o arrastra el marcador hasta el punto exacto de la cancha.</small>
+            <small class="text-muted">Haz clic en el mapa o arrastra el marcador hasta el punto exacto del centro deportivo.</small>
         @endif
     @else
         <div class="alert alert-warning mb-0">

@@ -24,12 +24,19 @@ class CourtFieldDetailScreen extends StatefulWidget {
 
 class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
   late DateTime _date = DateUtils.dateOnly(widget.initialDate);
+  late CourtFieldSummaryModel _field = CourtFieldSummaryModel(
+    id: widget.field.id,
+    name: widget.field.name,
+    pricePerHour: widget.field.pricePerHour,
+    sports: widget.field.sports,
+  );
+  late List<CourtFieldSummaryModel> _venueFields = [_field];
+  late SportModel? _sport = widget.field.sports.isEmpty ? null : widget.field.sports.first;
   CourtAvailabilityModel? _availability;
   bool _loading = true;
   String? _error;
   String? _selectedStart;
   int _hours = 1;
-  late SportModel _sport = widget.field.sports.first;
 
   @override
   void initState() {
@@ -46,12 +53,15 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
     });
     try {
       final availability = await widget.courtApiService.availability(
-        fieldId: widget.field.id,
+        fieldId: _field.id,
         date: _date,
       );
       if (!mounted) return;
       setState(() {
         _availability = availability;
+        if (availability.venueFields.isNotEmpty) {
+          _venueFields = availability.venueFields;
+        }
         _loading = false;
       });
     } catch (error) {
@@ -63,6 +73,36 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
         _loading = false;
       });
     }
+  }
+
+  /// Every sport offered by any court of the sports center.
+  List<SportModel> get _venueSports {
+    final byId = <int, SportModel>{};
+    for (final field in _venueFields) {
+      for (final sport in field.sports) {
+        byId.putIfAbsent(sport.id, () => sport);
+      }
+    }
+    return byId.values.toList();
+  }
+
+  List<CourtFieldSummaryModel> get _fieldsForSport {
+    final sport = _sport;
+    if (sport == null) return _venueFields;
+    return _venueFields.where((field) => field.sports.any((item) => item.id == sport.id)).toList();
+  }
+
+  void _selectSport(SportModel sport) {
+    setState(() => _sport = sport);
+    if (_field.sports.any((item) => item.id == sport.id)) return;
+    final next = _fieldsForSport;
+    if (next.isNotEmpty) _selectField(next.first);
+  }
+
+  void _selectField(CourtFieldSummaryModel field) {
+    if (field.id == _field.id) return;
+    setState(() => _field = field);
+    _load();
   }
 
   bool _canBookHours(int hours) {
@@ -79,7 +119,7 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
     return true;
   }
 
-  double get _amount => widget.field.pricePerHour * _hours;
+  double get _amount => _field.pricePerHour * _hours;
 
   String? get _endTime {
     if (!_canBookHours(_hours) || _selectedStart == null) return null;
@@ -91,47 +131,66 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
     return '$hour:$minute';
   }
 
+  Future<void> _openPayment() async {
+    final sport = _sport;
+    if (sport == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CourtPaymentScreen(
+          field: CourtFieldModel(
+            id: _field.id,
+            name: _field.name,
+            pricePerHour: _field.pricePerHour,
+            venue: widget.field.venue,
+            sports: _field.sports,
+          ),
+          sport: sport,
+          date: _date,
+          startTime: _selectedStart!,
+          endTime: _endTime!,
+          hours: _hours,
+          courtApiService: widget.courtApiService,
+        ),
+      ),
+    );
+    // The hour may have been taken or released meanwhile.
+    if (mounted) _load();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final field = widget.field;
+    final venue = widget.field.venue;
+    final textTheme = Theme.of(context).textTheme;
+    final canPay = _endTime != null && _sport != null;
     return Scaffold(
-      appBar: AppBar(title: Text(field.venue.name)),
+      appBar: AppBar(title: Text(venue.name)),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FilledButton(
-            onPressed: _endTime == null
-                ? null
-                : () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => CourtPaymentScreen(
-                          field: field,
-                          sport: _sport,
-                          date: _date,
-                          startTime: _selectedStart!,
-                          endTime: _endTime!,
-                          hours: _hours,
-                          courtApiService: widget.courtApiService,
-                        ),
-                      ),
-                    );
-                  },
+            onPressed: canPay ? _openPayment : null,
             child: Text(
-              _endTime == null ? 'Selecciona un horario' : 'Pagar ${formatBs(_amount)}',
+              canPay ? 'Reservar · ${formatBs(_amount)}' : 'Selecciona un horario',
             ),
           ),
         ),
       ),
       body: ListView(
         children: [
-          if (field.venue.photos.isNotEmpty)
+          if (venue.photos.isNotEmpty)
             SizedBox(
-              height: 220,
+              height: 200,
               child: PageView(
                 children: [
-                  for (final photo in field.venue.photos)
-                    Image.network(photo, fit: BoxFit.cover),
+                  for (final photo in venue.photos)
+                    Image.network(
+                      photo,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const ColoredBox(
+                        color: Colors.black12,
+                        child: Center(child: Icon(Icons.image_not_supported_outlined)),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -140,29 +199,48 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(field.name, style: Theme.of(context).textTheme.headlineSmall),
-                Text(field.venue.address),
-                const SizedBox(height: 8),
-                Text('${formatBs(field.pricePerHour)} por hora'),
+                Text(venue.name, style: textTheme.headlineSmall),
+                Text(venue.address),
+                if (venue.openingTime != null && venue.closingTime != null)
+                  Text(
+                    'Atiende ${_hhmm(venue.openingTime!)}–${_hhmm(venue.closingTime!)}',
+                    style: textTheme.bodySmall,
+                  ),
                 const SizedBox(height: 16),
-                Text('Deporte', style: Theme.of(context).textTheme.titleSmall),
+                Text('Deporte', style: textTheme.titleSmall),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    for (final sport in field.sports)
+                    for (final sport in _venueSports)
                       ChoiceChip(
                         label: Text(sport.name),
-                        selected: _sport.id == sport.id,
-                        onSelected: (_) => setState(() => _sport = sport),
+                        selected: _sport?.id == sport.id,
+                        onSelected: (_) => _selectSport(sport),
                       ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text('Fecha', style: Theme.of(context).textTheme.titleSmall),
+                Text('Cancha', style: textTheme.titleSmall),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final field in _fieldsForSport)
+                      ChoiceChip(
+                        label: Text('${field.name} · ${formatBs(field.pricePerHour)}/h'),
+                        selected: _field.id == field.id,
+                        onSelected: (_) => _selectField(field),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text('Fecha', style: textTheme.titleSmall),
                 const SizedBox(height: 8),
                 SizedBox(
-                  height: 72,
+                  height: 48,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: 14,
@@ -185,7 +263,12 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
                 if (_loading)
                   const Center(child: CircularProgressIndicator())
                 else if (_error != null)
-                  Text(_error!)
+                  Column(
+                    children: [
+                      Text(_error!),
+                      TextButton(onPressed: _load, child: const Text('Reintentar')),
+                    ],
+                  )
                 else
                   _Schedule(
                     availability: _availability!,
@@ -198,7 +281,7 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
                     },
                   ),
                 const SizedBox(height: 16),
-                Text('Horas de reserva', style: Theme.of(context).textTheme.titleSmall),
+                Text('Horas de reserva', style: textTheme.titleSmall),
                 const SizedBox(height: 8),
                 SegmentedButton<int>(
                   segments: const [
@@ -209,9 +292,11 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
                   onSelectionChanged: (selection) {
                     final hours = selection.first;
                     if (!_canBookHours(hours) && _selectedStart != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('No hay espacio para esas horas.')),
-                      );
+                      ScaffoldMessenger.of(context)
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(
+                          const SnackBar(content: Text('No hay espacio para esas horas.')),
+                        );
                       return;
                     }
                     setState(() => _hours = hours);
@@ -220,8 +305,8 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
                 if (_endTime != null) ...[
                   const SizedBox(height: 12),
                   Text(
-                    '$_selectedStart – $_endTime · ${formatBs(_amount)}',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    '${_sport?.name ?? ''} · $_selectedStart – $_endTime · ${formatBs(_amount)}',
+                    style: textTheme.titleMedium,
                   ),
                 ],
               ],
@@ -247,6 +332,7 @@ class _Schedule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ranges = availability.freeRanges;
+    final reserved = availability.slots.where((slot) => slot.isReserved).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -258,19 +344,141 @@ class _Schedule extends StatelessWidget {
           Text(
             'Libre: ${ranges.map((range) => '${range.start}–${range.end}').join(', ')}',
           ),
+        if (reserved.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Reservado: ${reserved.map((slot) => '${slot.start}–${slot.end}${slot.sportName == null ? '' : ' (${slot.sportName})'}').join(', ')}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final slot in availability.slots)
-              ChoiceChip(
-                label: Text(slot.available ? '${slot.start}–${slot.end}' : 'Ocupado\n${slot.start}'),
-                selected: selectedStart == slot.start,
-                onSelected: slot.available ? (_) => onSelect(slot.start) : null,
-              ),
-          ],
+        const _Legend(),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const spacing = 8.0;
+            final columns = constraints.maxWidth >= 480 ? 4 : 3;
+            final width = (constraints.maxWidth - spacing * (columns - 1)) / columns;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: [
+                for (final slot in availability.slots)
+                  SizedBox(
+                    width: width,
+                    child: _SlotTile(
+                      slot: slot,
+                      selected: selectedStart == slot.start,
+                      onTap: () {
+                        if (slot.available) {
+                          onSelect(slot.start);
+                          return;
+                        }
+                        final message = slot.isReserved
+                            ? 'Ese horario ya está reservado${slot.sportName == null ? '' : ' para ${slot.sportName}'}.'
+                            : 'Ese horario ya pasó.';
+                        ScaffoldMessenger.of(context)
+                          ..hideCurrentSnackBar()
+                          ..showSnackBar(SnackBar(content: Text(message)));
+                      },
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
+      ],
+    );
+  }
+}
+
+class _SlotTile extends StatelessWidget {
+  const _SlotTile({required this.slot, required this.selected, required this.onTap});
+
+  final CourtSlotModel slot;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final (background, foreground, border) = switch (slot) {
+      _ when selected => (colors.primary, colors.onPrimary, colors.primary),
+      _ when slot.isReserved => (colors.errorContainer, colors.onErrorContainer, colors.errorContainer),
+      _ when !slot.available => (
+          colors.surfaceContainerHighest,
+          colors.onSurface.withValues(alpha: 0.38),
+          colors.surfaceContainerHighest,
+        ),
+      _ => (colors.surface, colors.onSurface, colors.outline),
+    };
+
+    return Material(
+      color: background,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: border),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${slot.start}–${slot.end}',
+                style: TextStyle(color: foreground, fontWeight: FontWeight.w600),
+              ),
+              Text(
+                switch (slot) {
+                  _ when slot.isReserved => slot.sportName ?? 'Reservado',
+                  _ when slot.isPast => 'Pasado',
+                  _ => 'Libre',
+                },
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: foreground, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Legend extends StatelessWidget {
+  const _Legend();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    Widget item(Color color, String label, {Color? border}) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: border ?? color),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        );
+
+    return Wrap(
+      spacing: 16,
+      runSpacing: 4,
+      children: [
+        item(colors.surface, 'Libre', border: colors.outline),
+        item(colors.errorContainer, 'Reservado'),
+        item(colors.primary, 'Tu selección'),
       ],
     );
   }
@@ -280,3 +488,5 @@ String _dayLabel(DateTime date) {
   const days = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
   return '${days[date.weekday - 1]} ${date.day}';
 }
+
+String _hhmm(String time) => time.length >= 5 ? time.substring(0, 5) : time;

@@ -9,7 +9,7 @@
         @php
             $boxes = [
                 ['label' => 'Usuarios', 'value' => $stats['users'], 'icon' => 'fa-users', 'color' => 'info', 'route' => 'users.index', 'can' => 'users.index'],
-                ['label' => auth()->user()->can('courts.view_all') ? 'Complejos / canchas' : 'Mis canchas', 'value' => $stats['courts'], 'icon' => 'fa-map-marked-alt', 'color' => 'success', 'route' => 'courts.index', 'can' => 'courts.index'],
+                ['label' => auth()->user()->can('courts.view_all') ? 'Centros deportivos' : 'Mis centros deportivos', 'value' => $stats['courts'], 'icon' => 'fa-map-marked-alt', 'color' => 'success', 'route' => 'courts.index', 'can' => 'courts.index'],
                 ['label' => 'Canchas físicas', 'value' => $stats['fields'], 'icon' => 'fa-border-all', 'color' => 'primary', 'route' => 'courts.index', 'can' => 'courts.index'],
                 ['label' => 'Partidos abiertos', 'value' => $stats['openMatches'], 'icon' => 'fa-futbol', 'color' => 'warning', 'route' => null, 'can' => null],
                 ['label' => 'Reservas activas', 'value' => $stats['reservations'], 'icon' => 'fa-calendar-check', 'color' => 'danger', 'route' => null, 'can' => null],

@@ -24,8 +24,10 @@ class RolesAndPermissionsSeeder extends Seeder
         'courts.store',
         'courts.update',
         'courts.destroy',
-        // Without it a user only sees/manages the courts they own (courts.owner_id).
+        // Without it a user only sees/manages the courts they own (courts.owner_id) or manage (court_managers).
         'courts.view_all',
+        // Assign/remove managers of a court (owners: only on their own courts).
+        'courts.managers',
 
         'court_fields.store',
         'court_fields.update',
@@ -64,21 +66,32 @@ class RolesAndPermissionsSeeder extends Seeder
             'courts.update',
             'courts.destroy',
             'courts.view_all',
+            'courts.managers',
             'court_fields.store',
             'court_fields.update',
             'court_fields.destroy',
             'users.index',
             'users.show',
         ],
-        // Court owner: only the courts assigned to them.
+        // Court owner: only the courts assigned to them; can add managers to them.
         'partner' => [
+            'dashboard.index',
+            'courts.index',
+            'courts.show',
+            'courts.update',
+            'courts.managers',
+            'court_fields.store',
+            'court_fields.update',
+            'court_fields.destroy',
+        ],
+        // Staff assigned by an owner: only the courts they manage, cannot delete or assign managers.
+        'manager' => [
             'dashboard.index',
             'courts.index',
             'courts.show',
             'courts.update',
             'court_fields.store',
             'court_fields.update',
-            'court_fields.destroy',
         ],
         'cliente' => [],
     ];

@@ -6,6 +6,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -40,6 +41,14 @@ class User extends Authenticatable
     public function courts(): HasMany
     {
         return $this->hasMany(Court::class, 'owner_id');
+    }
+
+    /**
+     * Venues this user was assigned to as manager.
+     */
+    public function managedCourts(): BelongsToMany
+    {
+        return $this->belongsToMany(Court::class, 'court_managers')->withTimestamps();
     }
 
     public function organizedMatches(): HasMany

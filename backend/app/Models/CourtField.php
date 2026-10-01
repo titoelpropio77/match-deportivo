@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\CourtFieldFeature;
+use Illuminate\Database\Eloquent\Casts\AsEnumCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -14,6 +16,9 @@ class CourtField extends Model
         'court_id',
         'name',
         'price_per_hour',
+        'dimensions',
+        'description',
+        'features',
     ];
 
     /**
@@ -23,6 +28,7 @@ class CourtField extends Model
     {
         return [
             'price_per_hour' => 'decimal:2',
+            'features' => AsEnumCollection::of(CourtFieldFeature::class),
         ];
     }
 
@@ -42,20 +48,23 @@ class CourtField extends Model
     }
 
     /**
-     * Hourly slots for a date. A slot is unavailable when any reservation
-     * on this physical court overlaps it, regardless of the sport.
+     * Hourly slots for a date. A slot is unavailable when any active reservation
+     * on this physical court overlaps it, regardless of the sport, or when it already started.
+     * Reserved slots carry the sport they were booked for.
      *
-     * @return list<array{start: string, end: string, available: bool}>
+     * @return list<array{start: string, end: string, available: bool, status: string, sport: array{id: int, name: string}|null}>
      */
     public function slotsForDate(string $date): array
     {
         $court = $this->court;
         $opening = Carbon::parse($date.' '.$court->opening_time);
         $closing = Carbon::parse($date.' '.$court->closing_time);
+        $now = now();
 
         $reservations = $this->reservations()
+            ->with('sport')
             ->whereDate('reserved_on', $date)
-            ->where('status', '!=', 'cancelled')
+            ->active()
             ->get();
 
         $slots = [];
@@ -63,14 +72,23 @@ class CourtField extends Model
 
         while ($cursor->copy()->addHour()->lessThanOrEqualTo($closing)) {
             $end = $cursor->copy()->addHour();
-            $occupied = $reservations->contains(
+            $reservation = $reservations->first(
                 fn (CourtReservation $reservation): bool => $reservation->overlaps($cursor, $end)
             );
+            $status = match (true) {
+                $reservation !== null => 'reserved',
+                $cursor->lte($now) => 'past',
+                default => 'available',
+            };
 
             $slots[] = [
                 'start' => $cursor->format('H:i'),
                 'end' => $end->format('H:i'),
-                'available' => ! $occupied,
+                'available' => $status === 'available',
+                'status' => $status,
+                'sport' => $reservation?->sport
+                    ? ['id' => $reservation->sport->id, 'name' => $reservation->sport->name]
+                    : null,
             ];
 
             $cursor = $end;
@@ -80,7 +98,7 @@ class CourtField extends Model
     }
 
     /**
-     * @param  list<array{start: string, end: string, available: bool}>  $slots
+     * @param  list<array{start: string, end: string, available: bool, status: string}>  $slots
      * @return list<array{start: string, end: string}>
      */
     public static function freeRanges(array $slots): array

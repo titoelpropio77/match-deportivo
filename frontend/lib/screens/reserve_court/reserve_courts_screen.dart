@@ -169,7 +169,19 @@ class _ReserveCourtsScreenState extends State<ReserveCourtsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (photo != null)
-                  Image.network(photo, height: 140, width: double.infinity, fit: BoxFit.cover),
+                  Image.network(
+                    photo,
+                    height: 140,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => const SizedBox(
+                      height: 140,
+                      child: ColoredBox(
+                        color: Colors.black12,
+                        child: Center(child: Icon(Icons.image_not_supported_outlined)),
+                      ),
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(

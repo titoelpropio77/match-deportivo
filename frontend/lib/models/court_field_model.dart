@@ -64,17 +64,31 @@ class CourtSlotModel {
     required this.start,
     required this.end,
     required this.available,
-  });
+    String? status,
+    this.sportName,
+  }) : status = status ?? (available ? 'available' : 'reserved');
 
   final String start;
   final String end;
   final bool available;
 
+  /// `available`, `reserved` or `past` (the hour already started today).
+  final String status;
+
+  /// Sport the hour was booked for, only for reserved slots.
+  final String? sportName;
+
+  bool get isReserved => status == 'reserved';
+  bool get isPast => status == 'past';
+
   factory CourtSlotModel.fromJson(Map<String, dynamic> json) {
+    final sport = json['sport'] as Map<String, dynamic>?;
     return CourtSlotModel(
       start: json['start'] as String,
       end: json['end'] as String,
       available: json['available'] as bool,
+      status: json['status'] as String?,
+      sportName: sport?['name'] as String?,
     );
   }
 }
@@ -84,11 +98,15 @@ class CourtAvailabilityModel {
     required this.date,
     required this.slots,
     required this.freeRanges,
+    this.venueFields = const [],
   });
 
   final String date;
   final List<CourtSlotModel> slots;
   final List<({String start, String end})> freeRanges;
+
+  /// Every bookable court of the same sports center (without venue data).
+  final List<CourtFieldSummaryModel> venueFields;
 
   factory CourtAvailabilityModel.fromJson(Map<String, dynamic> json) {
     final ranges = (json['free_ranges'] as List<dynamic>? ?? const [])
@@ -104,6 +122,35 @@ class CourtAvailabilityModel {
           .map((item) => CourtSlotModel.fromJson(item as Map<String, dynamic>))
           .toList(),
       freeRanges: ranges,
+      venueFields: (json['venue_fields'] as List<dynamic>? ?? const [])
+          .map((item) => CourtFieldSummaryModel.fromJson(item as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
+class CourtFieldSummaryModel {
+  const CourtFieldSummaryModel({
+    required this.id,
+    required this.name,
+    required this.pricePerHour,
+    this.sports = const [],
+  });
+
+  final int id;
+  final String name;
+  final double pricePerHour;
+  final List<SportModel> sports;
+
+  factory CourtFieldSummaryModel.fromJson(Map<String, dynamic> json) {
+    return CourtFieldSummaryModel(
+      id: (json['id'] as num).toInt(),
+      name: json['name'] as String,
+      pricePerHour: (json['price_per_hour'] as num).toDouble(),
+      sports: (json['sports'] as List<dynamic>?)
+              ?.map((item) => SportModel.fromJson(item as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
 }
@@ -120,6 +167,9 @@ class CourtReservationModel {
     this.sportName,
     this.fieldName,
     this.venueName,
+    this.paymentReference,
+    this.paymentExpiresAt,
+    this.field,
   });
 
   final int id;
@@ -132,6 +182,26 @@ class CourtReservationModel {
   final String? sportName;
   final String? fieldName;
   final String? venueName;
+  final String? paymentReference;
+  final DateTime? paymentExpiresAt;
+
+  /// Court with its venue (address, photos), when the API includes it.
+  final CourtFieldModel? field;
+
+  bool get isPaid => status == 'paid';
+  bool get isPendingPayment => status == 'pending_payment';
+
+  DateTime get startsAt => _at(startTime);
+  DateTime get endsAt => _at(endTime);
+
+  /// Still to be played (or being played right now).
+  bool get isUpcoming => endsAt.isAfter(DateTime.now());
+
+  DateTime _at(String time) {
+    final day = DateTime.parse(date);
+    final parts = time.split(':');
+    return DateTime(day.year, day.month, day.day, int.parse(parts[0]), int.parse(parts[1]));
+  }
 
   factory CourtReservationModel.fromJson(Map<String, dynamic> json) {
     final sport = json['sport'] as Map<String, dynamic>?;
@@ -149,6 +219,9 @@ class CourtReservationModel {
       sportName: sport?['name'] as String?,
       fieldName: field?['name'] as String?,
       venueName: venue?['name'] as String?,
+      paymentReference: json['payment_reference'] as String?,
+      paymentExpiresAt: DateTime.tryParse(json['payment_expires_at'] as String? ?? '')?.toLocal(),
+      field: venue == null ? null : CourtFieldModel.fromJson(field!),
     );
   }
 }

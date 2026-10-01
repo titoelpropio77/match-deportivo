@@ -154,7 +154,7 @@ class CourtSeeder extends Seeder
                 'ends_at' => '20:00:00',
                 'hours' => 1,
                 'amount' => 60,
-                'status' => 'pending_payment',
+                'status' => CourtReservation::STATUS_PAID,
             ]
         );
     }
