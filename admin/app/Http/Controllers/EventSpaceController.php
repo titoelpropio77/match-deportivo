@@ -17,6 +17,7 @@ class EventSpaceController extends Controller
     public function store(EventSpaceRequest $request, Court $court): RedirectResponse
     {
         $space = $court->eventSpaces()->create($request->spaceData());
+        $space->amenities()->sync($request->amenityIds());
         if ($request->hasFile('photo')) {
             $space->update(['photo_path' => $request->file('photo')->store("event-spaces/{$space->id}", CourtPhoto::DISK)]);
         }
@@ -35,6 +36,7 @@ class EventSpaceController extends Controller
         }
 
         $eventSpace->update($attributes);
+        $eventSpace->amenities()->sync($request->amenityIds());
         if ($previousPhoto !== $eventSpace->photo_path) {
             EventSpace::deleteStoredPhoto($previousPhoto);
         }

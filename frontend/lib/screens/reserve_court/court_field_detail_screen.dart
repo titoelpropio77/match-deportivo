@@ -43,6 +43,9 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
     name: widget.field.name,
     pricePerHour: widget.field.pricePerHour,
     sports: widget.field.sports,
+    airConditioningPrice: widget.field.airConditioningPrice,
+    lightingPrice: widget.field.lightingPrice,
+    lightingFrom: widget.field.lightingFrom,
   );
   late List<CourtFieldSummaryModel> _venueFields = [_field];
   late SportModel? _sport =
@@ -254,6 +257,7 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
                       ),
                   ],
                 ),
+                _FieldExtras(field: _field),
                 const SizedBox(height: 16),
                 Text('Fecha', style: textTheme.titleSmall),
                 const SizedBox(height: 8),
@@ -427,9 +431,25 @@ class _SlotTile extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '${slot.start}–${slot.end}',
-                style: TextStyle(color: foreground, fontWeight: FontWeight.w600),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      '${slot.start}–${slot.end}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: foreground, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (slot.lighting && slot.available) ...[
+                    const SizedBox(width: 2),
+                    Tooltip(
+                      message: 'Con luz: tiene costo extra',
+                      child: Icon(Icons.lightbulb_outline, size: 14, color: foreground),
+                    ),
+                  ],
+                ],
               ),
               Text(
                 switch (slot) {
@@ -445,6 +465,47 @@ class _SlotTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// "Luz desde las 18:00: + Bs 10/h" and "Aire acondicionado opcional: + Bs 15/h" of the selected court.
+class _FieldExtras extends StatelessWidget {
+  const _FieldExtras({required this.field});
+
+  final CourtFieldSummaryModel field;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = [
+      if ((field.lightingPrice ?? 0) > 0 && field.lightingFrom != null)
+        (Icons.lightbulb_outline, 'Luz desde las ${field.lightingFrom}: + ${formatBs(field.lightingPrice!)}/h'),
+      if (field.offersAirConditioning)
+        (Icons.ac_unit, 'Aire acondicionado opcional: + ${formatBs(field.airConditioningPrice!)}/h'),
+    ];
+    if (lines.isEmpty) return const SizedBox.shrink();
+
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        );
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final (icon, text) in lines)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(
+                children: [
+                  Icon(icon, size: 14, color: style?.color),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text(text, style: style)),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

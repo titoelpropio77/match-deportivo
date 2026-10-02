@@ -371,6 +371,16 @@ class _RangeRow extends StatelessWidget {
                   '${reservation.startTime}–${reservation.endTime} (${reservation.hours} h)',
                   style: textTheme.bodySmall?.copyWith(decoration: decoration),
                 ),
+                if (reservation.lightingAmount > 0)
+                  Text(
+                    '+ Luz nocturna · ${formatBs(reservation.lightingAmount)}',
+                    style: textTheme.bodySmall?.copyWith(decoration: decoration),
+                  ),
+                if (reservation.airConditioning)
+                  Text(
+                    '+ Aire acondicionado · ${formatBs(reservation.airConditioningAmount)}',
+                    style: textTheme.bodySmall?.copyWith(decoration: decoration),
+                  ),
                 for (final rental in reservation.rentals)
                   Text(
                     '+ ${rental.quantity} × ${rental.name} · ${formatBs(rental.amount)}',

@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\City;
 use App\Models\Court;
 use App\Models\CourtReservation;
+use App\Models\EventAmenity;
 use App\Models\Sport;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -192,7 +193,8 @@ class CourtSeeder extends Seeder
 
             // Upsert by name so existing event reservations are kept.
             foreach ($data['event_spaces'] ?? [] as $spaceData) {
-                $court->eventSpaces()->updateOrCreate(['name' => $spaceData['name']], $spaceData);
+                $space = $court->eventSpaces()->updateOrCreate(['name' => $spaceData['name']], collect($spaceData)->except('amenities')->all());
+                $space->amenities()->sync(EventAmenity::query()->whereIn('key', $spaceData['amenities'] ?? [])->pluck('id'));
             }
         }
 

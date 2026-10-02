@@ -24,9 +24,12 @@ class CourtReservationResource extends JsonResource
             'start_time' => substr((string) $this->starts_at, 0, 5),
             'end_time' => substr((string) $this->ends_at, 0, 5),
             'hours' => $this->hours,
-            // Total: court hours + rented gear (items_amount).
+            // Total: court hours + rented gear (items_amount) + air conditioning + night lighting.
             'amount' => (float) $this->amount,
             'items_amount' => (float) $this->items_amount,
+            'air_conditioning' => (bool) $this->air_conditioning,
+            'air_conditioning_amount' => (float) $this->air_conditioning_amount,
+            'lighting_amount' => (float) $this->lighting_amount,
             'rentals' => $this->whenLoaded('items', fn () => $this->items->map(fn ($item) => [
                 'rental_item_id' => $item->rental_item_id,
                 'name' => $item->name,

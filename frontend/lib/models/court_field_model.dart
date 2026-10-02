@@ -43,6 +43,9 @@ class CourtFieldModel {
     required this.pricePerHour,
     required this.venue,
     this.sports = const [],
+    this.airConditioningPrice,
+    this.lightingPrice,
+    this.lightingFrom,
   });
 
   final int id;
@@ -51,11 +54,19 @@ class CourtFieldModel {
   final CourtVenueModel venue;
   final List<SportModel> sports;
 
+  /// See [CourtFieldSummaryModel.airConditioningPrice].
+  final double? airConditioningPrice;
+  final double? lightingPrice;
+  final String? lightingFrom;
+
   factory CourtFieldModel.fromJson(Map<String, dynamic> json) {
     return CourtFieldModel(
       id: (json['id'] as num).toInt(),
       name: json['name'] as String,
       pricePerHour: (json['price_per_hour'] as num).toDouble(),
+      airConditioningPrice: (json['air_conditioning_price'] as num?)?.toDouble(),
+      lightingPrice: (json['lighting_price'] as num?)?.toDouble(),
+      lightingFrom: json['lighting_from'] as String?,
       venue: CourtVenueModel.fromJson(json['venue'] as Map<String, dynamic>),
       sports: (json['sports'] as List<dynamic>?)
               ?.map((item) => SportModel.fromJson(item as Map<String, dynamic>))
@@ -72,6 +83,7 @@ class CourtSlotModel {
     required this.available,
     String? status,
     this.sportName,
+    this.lighting = false,
   }) : status = status ?? (available ? 'available' : 'reserved');
 
   final String start;
@@ -84,6 +96,9 @@ class CourtSlotModel {
   /// Sport the hour was booked for, only for reserved slots.
   final String? sportName;
 
+  /// Night hour: the court's lighting price is added to it.
+  final bool lighting;
+
   bool get isReserved => status == 'reserved';
   bool get isPast => status == 'past';
 
@@ -95,6 +110,7 @@ class CourtSlotModel {
       available: json['available'] as bool,
       status: json['status'] as String?,
       sportName: sport?['name'] as String?,
+      lighting: json['lighting'] as bool? ?? false,
     );
   }
 }
@@ -141,6 +157,9 @@ class CourtFieldSummaryModel {
     required this.name,
     required this.pricePerHour,
     this.sports = const [],
+    this.airConditioningPrice,
+    this.lightingPrice,
+    this.lightingFrom,
   });
 
   final int id;
@@ -148,11 +167,35 @@ class CourtFieldSummaryModel {
   final double pricePerHour;
   final List<SportModel> sports;
 
+  /// Extra per hour when the player picks air conditioning; null when the court does not offer it.
+  final double? airConditioningPrice;
+
+  /// Extra per hour charged automatically for the hours from [lightingFrom] ("18:00"); null when free.
+  final double? lightingPrice;
+  final String? lightingFrom;
+
+  bool get offersAirConditioning => (airConditioningPrice ?? 0) > 0;
+
+  /// Same rule as the API: any part of the hour starting at [start] ("19:00") falls after [lightingFrom].
+  bool isLitHour(String start) {
+    final from = lightingFrom;
+    if ((lightingPrice ?? 0) <= 0 || from == null) return false;
+    return _minutes(start) + 60 > _minutes(from);
+  }
+
+  static int _minutes(String time) {
+    final parts = time.split(':');
+    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+  }
+
   factory CourtFieldSummaryModel.fromJson(Map<String, dynamic> json) {
     return CourtFieldSummaryModel(
       id: (json['id'] as num).toInt(),
       name: json['name'] as String,
       pricePerHour: (json['price_per_hour'] as num).toDouble(),
+      airConditioningPrice: (json['air_conditioning_price'] as num?)?.toDouble(),
+      lightingPrice: (json['lighting_price'] as num?)?.toDouble(),
+      lightingFrom: json['lighting_from'] as String?,
       sports: (json['sports'] as List<dynamic>?)
               ?.map((item) => SportModel.fromJson(item as Map<String, dynamic>))
               .toList() ??
@@ -184,6 +227,9 @@ class CourtReservationModel {
     this.refunded = false,
     this.itemsAmount = 0,
     this.rentals = const [],
+    this.airConditioning = false,
+    this.airConditioningAmount = 0,
+    this.lightingAmount = 0,
   });
 
   final int id;
@@ -219,6 +265,13 @@ class CourtReservationModel {
   /// Part of [amount] that comes from rented gear.
   final double itemsAmount;
   final List<ReservedRentalModel> rentals;
+
+  /// Booked with air conditioning, and what it added to [amount].
+  final bool airConditioning;
+  final double airConditioningAmount;
+
+  /// Night lighting added to [amount].
+  final double lightingAmount;
 
   bool get isCancelled => status == 'cancelled';
   bool get isPaid => status == 'paid';
@@ -262,6 +315,9 @@ class CourtReservationModel {
       wasPaid: json['paid_at'] != null,
       refunded: json['refunded_at'] != null,
       itemsAmount: (json['items_amount'] as num?)?.toDouble() ?? 0,
+      airConditioning: json['air_conditioning'] as bool? ?? false,
+      airConditioningAmount: (json['air_conditioning_amount'] as num?)?.toDouble() ?? 0,
+      lightingAmount: (json['lighting_amount'] as num?)?.toDouble() ?? 0,
       rentals: (json['rentals'] as List<dynamic>? ?? const [])
           .map((item) => ReservedRentalModel.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -278,6 +334,7 @@ class BookingItem {
     required this.startTime,
     required this.hours,
     this.rentals = const [],
+    this.airConditioning = false,
   });
 
   final CourtFieldSummaryModel field;
@@ -289,6 +346,9 @@ class BookingItem {
   /// Gear rented with this range (balls, rackets...), charged with it.
   final List<RentalSelection> rentals;
 
+  /// Picked air conditioning (only when the court offers it).
+  final bool airConditioning;
+
   BookingItem withRentals(List<RentalSelection> rentals) => BookingItem(
         field: field,
         sport: sport,
@@ -296,6 +356,17 @@ class BookingItem {
         startTime: startTime,
         hours: hours,
         rentals: rentals,
+        airConditioning: airConditioning,
+      );
+
+  BookingItem withAirConditioning(bool airConditioning) => BookingItem(
+        field: field,
+        sport: sport,
+        date: date,
+        startTime: startTime,
+        hours: hours,
+        rentals: rentals,
+        airConditioning: airConditioning && field.offersAirConditioning,
       );
 
   String get endTime {
@@ -308,8 +379,21 @@ class BookingItem {
   double get rentalsAmount =>
       rentals.fold(0, (total, rental) => total + rental.item.amountFor(rental.quantity, hours));
 
-  /// Court hours plus rented gear.
-  double get amount => courtAmount + rentalsAmount;
+  double get airConditioningAmount => airConditioning ? (field.airConditioningPrice ?? 0) * hours : 0;
+
+  /// Hours of the range played with the lights on (night), charged at the court's lighting price.
+  int get litHours {
+    final first = int.parse(startTime.split(':')[0]);
+    return [
+      for (var hour = first; hour < first + hours; hour++)
+        if (field.isLitHour('${hour.toString().padLeft(2, '0')}:00')) hour,
+    ].length;
+  }
+
+  double get lightingAmount => (field.lightingPrice ?? 0) * litHours;
+
+  /// Court hours plus rented gear, air conditioning and night lighting.
+  double get amount => courtAmount + rentalsAmount + airConditioningAmount + lightingAmount;
 
   Map<String, dynamic> toJson() => {
         'court_field_id': field.id,
@@ -317,6 +401,7 @@ class BookingItem {
         'date': formatApiDate(date),
         'start_time': startTime,
         'hours': hours,
+        if (airConditioning) 'air_conditioning': true,
         if (rentals.isNotEmpty) 'rentals': rentals.map((rental) => rental.toJson()).toList(),
       };
 }

@@ -15,10 +15,10 @@
                 @if ($field->dimensions)
                     <small class="text-muted">· {{ $field->dimensions }}</small>
                 @endif
-                @if ($field->features?->isNotEmpty())
+                @if ($field->features->isNotEmpty())
                     <div>
                         @foreach ($field->features as $feature)
-                            <span class="badge badge-light border" title="{{ $feature->label() }}"><i class="{{ $feature->icon() }} mr-1"></i>{{ $feature->label() }}</span>
+                            <span class="badge badge-light border" title="{{ $feature->name }}">@if ($feature->icon)<i class="{{ $feature->icon }} mr-1"></i>@endif{{ $feature->name }}</span>
                         @endforeach
                     </div>
                 @endif
@@ -31,7 +31,15 @@
                     <span class="badge badge-info">{{ $sport->name }}</span>
                 @endforeach
             </td>
-            <td class="text-right">Bs {{ number_format((float) $field->price_per_hour, 2) }}</td>
+            <td class="text-right">
+                Bs {{ number_format((float) $field->price_per_hour, 2) }}
+                @if ($field->offersAirConditioning())
+                    <div class="small text-muted text-nowrap"><i class="fas fa-snowflake mr-1"></i>+ Bs {{ number_format((float) $field->air_conditioning_price, 2) }} con aire</div>
+                @endif
+                @if ($field->chargesLighting())
+                    <div class="small text-muted text-nowrap"><i class="fas fa-lightbulb mr-1"></i>+ Bs {{ number_format((float) $field->lighting_price, 2) }} desde {{ substr($field->lighting_from, 0, 5) }}</div>
+                @endif
+            </td>
             @if ($editable ?? false)
                 <td class="text-right action-buttons">
                     @can('court_fields.update')
@@ -42,7 +50,10 @@
                                 'price_per_hour' => $field->price_per_hour,
                                 'dimensions' => $field->dimensions,
                                 'description' => $field->description,
-                                'features' => $field->features?->map->value->values() ?? [],
+                                'features' => $field->features->pluck('key'),
+                                'air_conditioning_price' => $field->air_conditioning_price,
+                                'lighting_price' => $field->lighting_price,
+                                'lighting_from' => $field->lighting_from ? substr($field->lighting_from, 0, 5) : null,
                                 'sports' => $field->sports->pluck('id'),
                                 'action' => route('courts.fields.update', [$court, $field]),
                             ];

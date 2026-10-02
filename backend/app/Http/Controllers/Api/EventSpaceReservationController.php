@@ -47,7 +47,7 @@ class EventSpaceReservationController extends Controller
         $now = now();
 
         $reservations = EventSpaceReservation::query()
-            ->with(['space.court.city', 'space.court.photos'])
+            ->with(['space.court.city', 'space.court.photos', 'space.amenities'])
             ->where('user_id', $request->user()->id)
             ->where(fn ($query) => $query
                 ->active()
@@ -120,6 +120,6 @@ class EventSpaceReservationController extends Controller
 
     private function resource(EventSpaceReservation $reservation): EventSpaceReservationResource
     {
-        return new EventSpaceReservationResource($reservation->load(['space.court.city', 'space.court.photos']));
+        return new EventSpaceReservationResource($reservation->load(['space.court.city', 'space.court.photos', 'space.amenities']));
     }
 }

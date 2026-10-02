@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\Courts;
 
-use App\Enums\EventSpaceAmenity;
 use App\Enums\EventSpaceType;
+use App\Models\EventAmenity;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -46,7 +46,8 @@ class EventSpaceRequest extends FormRequest
             'capacity' => ['required', 'integer', 'between:1,2000'],
             'min_hours' => ['required', 'integer', 'between:1,12'],
             'amenities' => ['array'],
-            'amenities.*' => [Rule::enum(EventSpaceAmenity::class)],
+            // Keys of event_amenities.
+            'amenities.*' => ['string', Rule::exists('event_amenities', 'key')],
             'rules' => ['nullable', 'string', 'max:2000'],
             'opening_time' => ['nullable', 'date_format:H:i', 'required_with:closing_time'],
             'closing_time' => ['nullable', 'date_format:H:i', 'required_with:opening_time', 'after:opening_time'],
@@ -57,13 +58,23 @@ class EventSpaceRequest extends FormRequest
     }
 
     /**
-     * Space attributes (without the upload fields).
+     * Space attributes (without the upload fields and the amenities, which go to the pivot).
      *
      * @return array<string, mixed>
      */
     public function spaceData(): array
     {
-        return collect($this->validated())->except(['photo', 'remove_photo'])->all();
+        return collect($this->validated())->except(['photo', 'remove_photo', 'amenities'])->all();
+    }
+
+    /**
+     * Ids of the checked amenities.
+     *
+     * @return list<int>
+     */
+    public function amenityIds(): array
+    {
+        return EventAmenity::query()->whereIn('key', $this->validated('amenities'))->pluck('id')->all();
     }
 
     /**

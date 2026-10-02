@@ -31,6 +31,7 @@ class CourtFieldController extends Controller
         $fields = CourtField::query()
             ->with([
                 'sports',
+                'features',
                 'court' => fn ($court) => $court->withCount(['eventSpaces' => fn ($spaces) => $spaces->active()]),
                 'court.photos',
                 'court.city',
@@ -75,12 +76,12 @@ class CourtFieldController extends Controller
             'date' => ['required', 'date_format:Y-m-d'],
         ]);
 
-        $courtField->load(['sports', 'court.city']);
+        $courtField->load(['sports', 'features', 'court.city']);
         $slots = $courtField->slotsForDate($validated['date']);
 
         // Other bookable courts of the same sports center, so the app can switch between them.
         $venueFields = CourtField::query()
-            ->with('sports')
+            ->with(['sports', 'features'])
             ->where('court_id', $courtField->court_id)
             ->orderBy('name')
             ->get();
@@ -111,7 +112,7 @@ class CourtFieldController extends Controller
         ]);
 
         $reservation = $bookings->book($request->user(), [$validated], '')->first();
-        $reservation->load(['field.court', 'sport']);
+        $reservation->load(['field.court', 'field.features', 'sport']);
 
         return response()->json([
             'data' => new CourtReservationResource($reservation),
@@ -127,7 +128,7 @@ class CourtFieldController extends Controller
         $now = now();
 
         $reservations = CourtReservation::query()
-            ->with(['field.court.photos', 'field.court.city', 'field.sports', 'sport', 'items'])
+            ->with(['field.court.photos', 'field.court.city', 'field.sports', 'field.features', 'sport', 'items'])
             ->where('user_id', $request->user()->id)
             ->where(fn ($query) => $query
                 ->active()
@@ -176,7 +177,7 @@ class CourtFieldController extends Controller
         abort_unless($reservation->user_id === $request->user()->id, 403);
 
         if ($reservation->status === CourtReservation::STATUS_PAID) {
-            $reservation->load(['field.court', 'sport']);
+            $reservation->load(['field.court', 'field.features', 'sport']);
 
             return response()->json(['data' => new CourtReservationResource($reservation)]);
         }
@@ -192,7 +193,7 @@ class CourtFieldController extends Controller
             'payment_method' => 'qr',
             'paid_at' => now(),
         ]);
-        $reservation->load(['field.court', 'sport']);
+        $reservation->load(['field.court', 'field.features', 'sport']);
 
         return response()->json(['data' => new CourtReservationResource($reservation)]);
     }

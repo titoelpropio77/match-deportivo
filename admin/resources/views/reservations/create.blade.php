@@ -12,6 +12,9 @@
     $fieldOptions = $courts->flatMap(fn ($court) => $court->fields->map(fn ($field) => [
         'id' => $field->id,
         'price' => (float) $field->price_per_hour,
+        'ac_price' => $field->offersAirConditioning() ? (float) $field->air_conditioning_price : null,
+        'lighting_price' => $field->chargesLighting() ? (float) $field->lighting_price : null,
+        'lighting_from' => $field->chargesLighting() ? substr($field->lighting_from, 0, 5) : null,
         'opening' => substr($court->opening_time, 0, 5),
         'closing' => substr($court->closing_time, 0, 5),
         'sports' => $field->sports->map(fn ($sport) => ['id' => $sport->id, 'name' => $sport->name])->values(),
@@ -80,6 +83,15 @@
                             @endfor
                         </select>
                     </div>
+                </div>
+
+                <div id="extras-block" class="d-none mb-3">
+                    <div class="custom-control custom-checkbox" id="ac-option">
+                        <input type="hidden" name="air_conditioning" value="0">
+                        <input type="checkbox" class="custom-control-input" id="air_conditioning" name="air_conditioning" value="1" @checked(old('air_conditioning'))>
+                        <label class="custom-control-label font-weight-normal" for="air_conditioning"><i class="fas fa-snowflake text-muted mr-1"></i>Con aire acondicionado <span class="text-muted" id="ac-price"></span></label>
+                    </div>
+                    <div class="small text-muted mt-1" id="lighting-note"><i class="fas fa-lightbulb mr-1"></i><span></span></div>
                 </div>
 
                 <div id="rentals-block" class="d-none">
@@ -179,6 +191,7 @@
                     hours.push({ value: label, label: label });
                 }
                 fillOptions($start, hours);
+                renderExtras(field);
                 renderRentals(field);
                 updateTotal();
             }
@@ -202,11 +215,38 @@
                 $('#rentals-block').toggleClass('d-none', items.length === 0);
             }
 
+            // Hours of the range that end after the lights go on (same rule as CourtField::isLitHour).
+            function litHours(field, hours) {
+                if (!field.lighting_price || !$start.val()) return 0;
+                const [h, m] = field.lighting_from.split(':').map(Number);
+                const from = h * 60 + m;
+                const first = parseInt($start.val(), 10);
+                let lit = 0;
+                for (let hour = first; hour < first + hours; hour++) {
+                    if ((hour + 1) * 60 > from) lit++;
+                }
+                return lit;
+            }
+
+            // Air conditioning option and lighting note of the selected court.
+            function renderExtras(field) {
+                $('#ac-option').toggleClass('d-none', !field.ac_price);
+                if (!field.ac_price) $('#air_conditioning').prop('checked', false);
+                $('#ac-price').text(field.ac_price ? '(+ Bs ' + field.ac_price.toFixed(2) + ' / hora)' : '');
+                $('#lighting-note').toggleClass('d-none', !field.lighting_price);
+                if (field.lighting_price) {
+                    $('#lighting-note span').text('Luz: + Bs ' + field.lighting_price.toFixed(2) + ' por hora desde las ' + field.lighting_from + ' (se suma automáticamente).');
+                }
+                $('#extras-block').toggleClass('d-none', !field.ac_price && !field.lighting_price);
+            }
+
             function updateTotal() {
                 const field = current();
                 if (!field) return;
                 const hours = parseInt($hours.val(), 10);
                 let total = field.price * hours;
+                if (field.ac_price && $('#air_conditioning').is(':checked')) total += field.ac_price * hours;
+                total += (field.lighting_price || 0) * litHours(field, hours);
                 $('#rentals input').each(function () {
                     const item = $(this).data('item');
                     const quantity = parseInt(this.value, 10) || 0;
@@ -219,6 +259,8 @@
             $hours.on('change', refresh);
             $sport.on('change', function () { const field = current(); if (field) { renderRentals(field); updateTotal(); } });
             $('#rentals').on('input change', 'input', updateTotal);
+            $start.on('change', updateTotal);
+            $('#air_conditioning').on('change', updateTotal);
             refresh();
         })();
     </script>

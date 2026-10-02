@@ -6,8 +6,11 @@ use App\DataTables\CourtDataTable;
 use App\Http\Requests\Courts\CourtRequest;
 use App\Models\City;
 use App\Models\Court;
+use App\Models\CourtFeature;
 use App\Models\CourtPhoto;
+use App\Models\EventAmenity;
 use App\Models\Sport;
+use App\Models\StoreOrder;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
@@ -57,7 +60,10 @@ class CourtController extends Controller
     {
         Gate::authorize('manage', $court);
 
-        $court->load(['owner', 'city', 'sports', 'photos', 'managers', 'fields.sports', 'eventSpaces', 'rentalItems.sport'])->loadCount('matches');
+        $court->load([
+            'owner', 'city', 'sports', 'photos', 'managers', 'fields.sports', 'fields.features', 'eventSpaces.amenities', 'rentalItems.sport',
+            'stores' => fn ($stores) => $stores->with('categories')->withCount('products'),
+        ])->loadCount('matches');
 
         return view('courts.show', ['court' => $court]);
     }
@@ -66,10 +72,14 @@ class CourtController extends Controller
     {
         Gate::authorize('manage', $court);
 
-        $court->load(['owner', 'sports', 'photos', 'managers', 'fields.sports', 'eventSpaces', 'rentalItems.sport']);
+        $court->load(['owner', 'sports', 'photos', 'managers', 'fields.sports', 'fields.features', 'eventSpaces.amenities', 'rentalItems.sport']);
 
         return view('courts.edit', [
             'court' => $court,
+            // Options of the physical court modal (court_features catalog).
+            'fieldFeatures' => CourtFeature::query()->orderBy('name')->get(),
+            // Options of the event space modal (event_amenities catalog).
+            'spaceAmenities' => EventAmenity::query()->orderBy('name')->get(),
             ...$this->formOptions($court),
         ]);
     }
@@ -107,6 +117,13 @@ class CourtController extends Controller
         if ($hasMatches) {
             return response()->json([
                 'message' => 'No se puede eliminar: el centro deportivo tiene partidos registrados.',
+            ], 422);
+        }
+
+        // Stores cascade with the venue: their sales history must not be lost.
+        if (StoreOrder::query()->whereHas('store', fn ($store) => $store->where('court_id', $court->id))->exists()) {
+            return response()->json([
+                'message' => 'No se puede eliminar: las tiendas del centro deportivo tienen ventas registradas.',
             ], 422);
         }
 

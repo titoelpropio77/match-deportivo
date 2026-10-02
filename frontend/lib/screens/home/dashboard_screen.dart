@@ -9,6 +9,7 @@ import '../../services/event_space_api_service.dart';
 import '../../services/match_api_service.dart';
 import '../../services/match_level_api_service.dart';
 import '../../services/sport_api_service.dart';
+import '../../services/store_api_service.dart';
 import '../../services/team_api_service.dart';
 import '../../services/tournament_api_service.dart';
 import '../../services/user_api_service.dart';
@@ -18,6 +19,7 @@ import '../my_reservations/my_reservations_screen.dart';
 import '../reserve_court/reserve_courts_screen.dart';
 import '../placeholder/coming_soon_screen.dart';
 import '../search_teams/search_teams_screen.dart';
+import '../stores/stores_screen.dart';
 import '../teams/teams_screen.dart';
 import '../tournaments/tournaments_screen.dart';
 import 'widgets/dashboard_header.dart';
@@ -169,6 +171,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  void _openStores(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StoresScreen(
+          storeApiService: StoreApiService(
+            baseUrl: widget.courtApiService.baseUrl,
+            token: widget.courtApiService.token,
+          ),
+        ),
+      ),
+    );
+  }
+
   void _openBuscarEquipos(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -237,6 +252,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       icon: Icons.stadium_outlined,
                       label: 'Buscar/Crear\nCanchas',
                       onTap: () => _openBuscarEquipos(context),
+                    ),
+                    QuickActionData(
+                      icon: Icons.storefront_outlined,
+                      label: 'Tiendas',
+                      onTap: () => _openStores(context),
                     ),
                   ],
                 ),

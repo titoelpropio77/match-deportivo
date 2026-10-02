@@ -2,11 +2,10 @@
 
 namespace App\Models;
 
-use App\Enums\EventSpaceAmenity;
 use App\Enums\EventSpaceType;
-use Illuminate\Database\Eloquent\Casts\AsEnumCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -25,7 +24,6 @@ class EventSpace extends Model
         'price_per_hour',
         'capacity',
         'min_hours',
-        'amenities',
         'rules',
         'photo_path',
         'opening_time',
@@ -43,7 +41,6 @@ class EventSpace extends Model
             'price_per_hour' => 'decimal:2',
             'capacity' => 'integer',
             'min_hours' => 'integer',
-            'amenities' => AsEnumCollection::of(EventSpaceAmenity::class),
             'is_active' => 'boolean',
         ];
     }
@@ -51,6 +48,11 @@ class EventSpace extends Model
     public function court(): BelongsTo
     {
         return $this->belongsTo(Court::class);
+    }
+
+    public function amenities(): BelongsToMany
+    {
+        return $this->belongsToMany(EventAmenity::class, 'event_space_amenity')->orderBy('name');
     }
 
     public function reservations(): HasMany

@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Enums\EventSpaceAmenity;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,7 +20,7 @@ class EventSpaceResource extends JsonResource
             'price_per_hour' => (float) $this->price_per_hour,
             'capacity' => $this->capacity,
             'min_hours' => $this->min_hours,
-            'amenities' => $this->amenities?->map(fn (EventSpaceAmenity $amenity) => ['key' => $amenity->value, 'label' => $amenity->label()])->values() ?? [],
+            'amenities' => EventAmenityResource::collection($this->whenLoaded('amenities')),
             'rules' => $this->rules,
             'photo_url' => $this->resource->photoUrl(),
             'opening_time' => $this->relationLoaded('court') ? substr($this->resource->openingTime(), 0, 5) : null,

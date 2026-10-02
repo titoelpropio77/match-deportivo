@@ -14,13 +14,14 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Books one or more hour ranges, on one or more courts, as a single booking paid with one QR.
- * Each range may add rented gear of its center and sport (balls, rackets...), charged with it.
+ * Each range may add rented gear of its center and sport (balls, rackets...), charged with it,
+ * and air conditioning when the court offers it; night hours add the court's lighting price.
  * All ranges are reserved or none: any conflict rejects the whole booking.
  */
 class CourtBookingService
 {
     /**
-     * @param  list<array{court_field_id: int, sport_id: int, date: string, start_time: string, hours: int, rentals?: list<array{rental_item_id: int, quantity: int}>}>  $items
+     * @param  list<array{court_field_id: int, sport_id: int, date: string, start_time: string, hours: int, air_conditioning?: bool, rentals?: list<array{rental_item_id: int, quantity: int}>}>  $items
      * @param  string  $errorPrefix  validation key prefix for item errors, e.g. "items." (or "" for a single item)
      * @return Collection<int, CourtReservation>
      */
@@ -28,7 +29,7 @@ class CourtBookingService
     {
         return DB::transaction(function () use ($user, $items, $errorPrefix): Collection {
             $fields = CourtField::query()
-                ->with(['court', 'sports:id'])
+                ->with(['court', 'sports:id', 'features'])
                 ->whereIn('id', array_column($items, 'court_field_id'))
                 ->lockForUpdate()
                 ->get()
@@ -83,6 +84,11 @@ class CourtBookingService
                 }
                 $itemsAmount = round(array_sum(array_column($lines, 'amount')), 2);
 
+                if (! empty($item['air_conditioning']) && ! $field->offersAirConditioning()) {
+                    $this->fail($key.'air_conditioning', "{$field->name} no ofrece aire acondicionado.");
+                }
+                $surcharges = $field->surchargesFor($start, $end, ! empty($item['air_conditioning']));
+
                 $reservation = CourtReservation::query()->create([
                     'booking_code' => $code,
                     'court_field_id' => $field->id,
@@ -92,8 +98,10 @@ class CourtBookingService
                     'starts_at' => $start->format('H:i:s'),
                     'ends_at' => $end->format('H:i:s'),
                     'hours' => (int) $item['hours'],
-                    'amount' => (float) $field->price_per_hour * (int) $item['hours'] + $itemsAmount,
+                    'amount' => (float) $field->price_per_hour * (int) $item['hours'] + $itemsAmount
+                        + $surcharges['air_conditioning_amount'] + $surcharges['lighting_amount'],
                     'items_amount' => $itemsAmount,
+                    ...$surcharges,
                     'status' => CourtReservation::STATUS_PENDING_PAYMENT,
                 ]);
                 $reservation->items()->createMany($lines);

@@ -24,10 +24,10 @@
                     @endif
                     · {{ $space->openingTime() }}–{{ $space->closingTime() }}
                 </div>
-                @if ($space->amenities?->isNotEmpty())
+                @if ($space->amenities->isNotEmpty())
                     <div class="mt-1">
                         @foreach ($space->amenities as $amenity)
-                            <span class="badge badge-light border font-weight-normal"><i class="{{ $amenity->icon() }} mr-1 text-muted"></i>{{ $amenity->label() }}</span>
+                            <span class="badge badge-light border font-weight-normal">@if ($amenity->icon)<i class="{{ $amenity->icon }} mr-1 text-muted"></i>@endif{{ $amenity->name }}</span>
                         @endforeach
                     </div>
                 @endif
@@ -47,7 +47,7 @@
                                 'price_per_hour' => $space->price_per_hour,
                                 'capacity' => $space->capacity,
                                 'min_hours' => $space->min_hours,
-                                'amenities' => $space->amenities?->map->value->values() ?? [],
+                                'amenities' => $space->amenities->pluck('key'),
                                 'rules' => $space->rules,
                                 'opening_time' => $space->opening_time ? substr($space->opening_time, 0, 5) : '',
                                 'closing_time' => $space->closing_time ? substr($space->closing_time, 0, 5) : '',

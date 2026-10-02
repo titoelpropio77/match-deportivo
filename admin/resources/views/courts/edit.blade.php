@@ -208,14 +208,16 @@
                         <label>Incluye</label>
                         @php($oldAmenities = $oldSpace ? old('amenities', []) : [])
                         <div class="row mb-3">
-                            @foreach (\App\Enums\EventSpaceAmenity::cases() as $amenity)
+                            @forelse ($spaceAmenities as $amenity)
                                 <div class="col-6 col-md-4">
                                     <div class="custom-control custom-checkbox">
-                                        <input type="checkbox" class="custom-control-input space-amenity" id="space_amenity_{{ $amenity->value }}" name="amenities[]" value="{{ $amenity->value }}" @checked(in_array($amenity->value, $oldAmenities, true))>
-                                        <label class="custom-control-label font-weight-normal" for="space_amenity_{{ $amenity->value }}"><i class="{{ $amenity->icon() }} text-muted mr-1"></i>{{ $amenity->label() }}</label>
+                                        <input type="checkbox" class="custom-control-input space-amenity" id="space_amenity_{{ $amenity->key }}" name="amenities[]" value="{{ $amenity->key }}" @checked(in_array($amenity->key, $oldAmenities, true))>
+                                        <label class="custom-control-label font-weight-normal" for="space_amenity_{{ $amenity->key }}">@if ($amenity->icon)<i class="{{ $amenity->icon }} text-muted mr-1"></i>@endif{{ $amenity->name }}</label>
                                     </div>
                                 </div>
-                            @endforeach
+                            @empty
+                                <div class="col-12 small text-muted">No hay servicios registrados.</div>
+                            @endforelse
                         </div>
                         <div class="form-group">
                             <label for="space_rules">Normas del espacio</label>
@@ -284,14 +286,34 @@
                         <label>Opciones adicionales</label>
                         @php($oldFieldFeatures = $errors->field->any() ? old('features', []) : [])
                         <div class="row mb-3">
-                            @foreach (\App\Enums\CourtFieldFeature::cases() as $feature)
+                            @forelse ($fieldFeatures as $feature)
                                 <div class="col-6">
                                     <div class="custom-control custom-checkbox">
-                                        <input type="checkbox" class="custom-control-input field-feature" id="field_feature_{{ $feature->value }}" name="features[]" value="{{ $feature->value }}" @checked(in_array($feature->value, $oldFieldFeatures, true))>
-                                        <label class="custom-control-label font-weight-normal" for="field_feature_{{ $feature->value }}"><i class="{{ $feature->icon() }} text-muted mr-1"></i>{{ $feature->label() }}</label>
+                                        <input type="checkbox" class="custom-control-input field-feature" id="field_feature_{{ $feature->key }}" name="features[]" value="{{ $feature->key }}" @checked(in_array($feature->key, $oldFieldFeatures, true))>
+                                        <label class="custom-control-label font-weight-normal" for="field_feature_{{ $feature->key }}">@if ($feature->icon)<i class="{{ $feature->icon }} text-muted mr-1"></i>@endif{{ $feature->name }}</label>
                                     </div>
                                 </div>
-                            @endforeach
+                            @empty
+                                <div class="col-12 small text-muted">No hay características registradas.</div>
+                            @endforelse
+                        </div>
+                        <div class="row" id="field-surcharges">
+                            <div class="col-12 form-group" data-surcharge-for="air_conditioning">
+                                <label for="field_ac_price"><i class="fas fa-snowflake text-muted mr-1"></i>Aire acondicionado: extra por hora (Bs)</label>
+                                <input id="field_ac_price" name="air_conditioning_price" type="number" step="0.01" min="0" class="form-control" value="{{ $errors->field->any() ? old('air_conditioning_price') : '' }}" placeholder="Vacío = incluido sin costo">
+                                <small class="text-muted">Si tiene precio, el cliente elige al reservar si lo quiere y se suma a su reserva.</small>
+                            </div>
+                            <div class="col-7 form-group" data-surcharge-for="lighting">
+                                <label for="field_lighting_price"><i class="fas fa-lightbulb text-muted mr-1"></i>Luz: extra por hora (Bs)</label>
+                                <input id="field_lighting_price" name="lighting_price" type="number" step="0.01" min="0" class="form-control" value="{{ $errors->field->any() ? old('lighting_price') : '' }}" placeholder="Vacío = sin costo">
+                            </div>
+                            <div class="col-5 form-group" data-surcharge-for="lighting">
+                                <label for="field_lighting_from">Desde las</label>
+                                <input id="field_lighting_from" name="lighting_from" type="time" step="1800" class="form-control" value="{{ $errors->field->any() ? old('lighting_from') : '' }}">
+                            </div>
+                            <div class="col-12 mb-3 mt-n2" data-surcharge-for="lighting">
+                                <small class="text-muted">Se suma automáticamente a cada hora reservada desde esa hora (de noche).</small>
+                            </div>
                         </div>
                         <label>Deportes *</label>
                         @php($oldFieldSports = $errors->field->any() ? array_map('intval', old('sports', [])) : [])
@@ -337,16 +359,30 @@
                     $('.field-feature').each(function () {
                         this.checked = (field.features || []).includes(this.value);
                     });
+                    $('#field_ac_price').val(field.air_conditioning_price || '');
+                    $('#field_lighting_price').val(field.lighting_price || '');
+                    $('#field_lighting_from').val(field.lighting_from || '18:00');
                     $('.field-sport').each(function () {
                         this.checked = field.sports.map(Number).includes(Number(this.value));
                     });
                 }
+                toggleSurcharges();
                 $modal.modal('show');
             }
 
+            // Price inputs of an option only show while the option is checked.
+            function toggleSurcharges() {
+                $('[data-surcharge-for]').each(function () {
+                    const checked = $('#field_feature_' + $(this).data('surcharge-for')).is(':checked');
+                    $(this).toggleClass('d-none', !checked);
+                });
+            }
+
+            $('.field-feature').on('change', toggleSurcharges);
+
             $('[data-add-field]').on('click', function () {
                 $form.find('.alert').remove();
-                openModal({ name: '', price_per_hour: '', dimensions: '', description: '', features: [], sports: [] });
+                openModal({ name: '', price_per_hour: '', dimensions: '', description: '', features: [], air_conditioning_price: '', lighting_price: '', lighting_from: '18:00', sports: [] });
             });
 
             $('[data-edit-field]').on('click', function () {
@@ -359,6 +395,7 @@
                 const previousAction = $('#field-action').val();
                 $form.attr('action', previousAction || $form.data('store-action'));
                 $('#field-method').val(previousAction ? 'PUT' : 'POST');
+                toggleSurcharges();
                 $modal.modal('show');
             @endif
         })();

@@ -122,4 +122,12 @@ class Court extends Model
     {
         return $this->hasMany(RentalItem::class);
     }
+
+    /**
+     * Shops of the venue (sports gear, drinks...).
+     */
+    public function stores(): HasMany
+    {
+        return $this->hasMany(Store::class);
+    }
 }

@@ -43,14 +43,19 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
   /// Picked gear per range: range index → rental item id → quantity.
   final Map<int, Map<int, int>> _quantities = {};
 
-  /// The picked ranges with their rented gear.
+  /// Ranges (by index) booked with air conditioning.
+  final Set<int> _airConditioned = {};
+
+  /// The picked ranges with their rented gear and air conditioning.
   List<BookingItem> get _items => [
         for (var index = 0; index < widget.items.length; index++)
-          widget.items[index].withRentals([
-            for (final rental in _rentalItems)
-              if ((_quantities[index]?[rental.id] ?? 0) > 0)
-                RentalSelection(item: rental, quantity: _quantities[index]![rental.id]!),
-          ]),
+          widget.items[index]
+              .withRentals([
+                for (final rental in _rentalItems)
+                  if ((_quantities[index]?[rental.id] ?? 0) > 0)
+                    RentalSelection(item: rental, quantity: _quantities[index]![rental.id]!),
+              ])
+              .withAirConditioning(_airConditioned.contains(index)),
       ];
 
   double get _amount => _items.fold(0, (total, item) => total + item.amount);
@@ -219,6 +224,14 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
                 ),
               ),
             ),
+            if (booking == null && widget.items.any((item) => item.field.offersAirConditioning))
+              _AirConditioningSection(
+                ranges: widget.items,
+                selected: _airConditioned,
+                onChanged: (index, value) => setState(
+                  () => value ? _airConditioned.add(index) : _airConditioned.remove(index),
+                ),
+              ),
             if (booking == null && _rentalItems.isNotEmpty)
               _RentalsSection(
                 ranges: widget.items,
@@ -283,13 +296,21 @@ class _BookingItemRow extends StatelessWidget {
         ],
       ),
     );
-    if (item.rentals.isEmpty) return row;
+    final extras = [
+      if (item.lightingAmount > 0)
+        ('Luz nocturna (${item.litHours} h)', item.lightingAmount),
+      if (item.airConditioningAmount > 0)
+        ('Aire acondicionado (${item.hours} h)', item.airConditioningAmount),
+      for (final rental in item.rentals)
+        ('${rental.quantity} × ${rental.item.name}', rental.item.amountFor(rental.quantity, item.hours)),
+    ];
+    if (extras.isEmpty) return row;
 
     final small = Theme.of(context).textTheme.bodySmall;
     return Column(
       children: [
         row,
-        for (final rental in item.rentals)
+        for (final (label, amount) in extras)
           Padding(
             padding: const EdgeInsets.only(left: 12, bottom: 4),
             child: Row(
@@ -298,17 +319,66 @@ class _BookingItemRow extends StatelessWidget {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    '${rental.quantity} × ${rental.item.name}',
+                    label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: small,
                   ),
                 ),
-                Text(formatBs(rental.item.amountFor(rental.quantity, item.hours)), style: small),
+                Text(formatBs(amount), style: small),
               ],
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Air conditioning switch for each picked range whose court offers it, with its extra per hour.
+class _AirConditioningSection extends StatelessWidget {
+  const _AirConditioningSection({required this.ranges, required this.selected, required this.onChanged});
+
+  final List<BookingItem> ranges;
+  final Set<int> selected;
+  final void Function(int rangeIndex, bool value) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Aire acondicionado', style: textTheme.titleMedium),
+              Text(
+                'Opcional: se suma al total por cada hora reservada.',
+                style: textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+              for (var index = 0; index < ranges.length; index++)
+                if (ranges[index].field.offersAirConditioning)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.ac_unit),
+                    title: Text(
+                      ranges.length > 1
+                          ? '${ranges[index].field.name} · ${ranges[index].startTime}–${ranges[index].endTime}'
+                          : 'Con aire acondicionado',
+                    ),
+                    subtitle: Text(
+                      '+ ${formatBs(ranges[index].field.airConditioningPrice!)}/h · '
+                      '${formatBs(ranges[index].field.airConditioningPrice! * ranges[index].hours)}',
+                    ),
+                    value: selected.contains(index),
+                    onChanged: (value) => onChanged(index, value),
+                  ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Enums\CourtFieldFeature;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -19,7 +18,12 @@ class CourtFieldResource extends JsonResource
             'price_per_hour' => (float) $this->price_per_hour,
             'dimensions' => $this->dimensions,
             'description' => $this->description,
-            'features' => $this->features?->map(fn (CourtFieldFeature $feature) => ['key' => $feature->value, 'label' => $feature->label()])->values() ?? [],
+            'features' => CourtFeatureResource::collection($this->whenLoaded('features')),
+            // Extra per hour when the player picks air conditioning; null when the court does not offer it.
+            'air_conditioning_price' => $this->resource->offersAirConditioning() ? (float) $this->air_conditioning_price : null,
+            // Extra per hour charged automatically for the hours from lighting_from (night).
+            'lighting_price' => $this->resource->chargesLighting() ? (float) $this->lighting_price : null,
+            'lighting_from' => $this->resource->chargesLighting() ? substr((string) $this->lighting_from, 0, 5) : null,
             'sports' => SportResource::collection($this->whenLoaded('sports')),
             'venue' => $this->whenLoaded('court', fn () => [
                 'id' => $this->court->id,

@@ -5,9 +5,11 @@ import '../../services/court_api_service.dart';
 import '../../services/event_space_api_service.dart';
 import '../event_spaces/my_events_screen.dart';
 import '../../services/match_api_service.dart';
+import '../../services/store_api_service.dart';
 import '../../services/user_api_service.dart';
 import '../my_courts/my_courts_screen.dart';
 import '../my_reservations/my_reservations_screen.dart';
+import '../stores/my_orders_screen.dart';
 import 'player_profile_screen.dart';
 
 /// Minimal "Perfil" tab: user info and session logout.
@@ -142,6 +144,23 @@ class ProfileScreen extends StatelessWidget {
                           title: 'Historial de canchas',
                           matchApiService: matchApiService!,
                           currentUserId: user.id,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.shopping_bag_outlined),
+                    title: const Text('Mis compras'),
+                    subtitle: const Text('Pedidos en las tiendas y su código de retiro'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => MyOrdersScreen(
+                          storeApiService: StoreApiService(
+                            baseUrl: courtApiService!.baseUrl,
+                            token: courtApiService!.token,
+                          ),
                         ),
                       ),
                     ),

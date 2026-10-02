@@ -89,6 +89,7 @@ class ReservationController extends Controller
     {
         $courts = $this->visibleCourts($request->user())->load([
             'fields.sports:id,name',
+            'fields.features',
             'rentalItems' => fn ($items) => $items->where('is_active', true),
         ]);
 
@@ -108,7 +109,7 @@ class ReservationController extends Controller
     {
         $validated = $request->validated();
 
-        $field = CourtField::query()->with('court')->findOrFail($validated['court_field_id']);
+        $field = CourtField::query()->with(['court', 'features'])->findOrFail($validated['court_field_id']);
         Gate::authorize('manage', $field->court);
 
         $reservation = DB::transaction(function () use ($validated, $field, $request): CourtReservation {
@@ -130,6 +131,11 @@ class ReservationController extends Controller
             $lines = $this->rentalLines($field, (int) $validated['sport_id'], $validated['rentals'] ?? [], $start, $end, (int) $validated['hours']);
             $itemsAmount = round(array_sum(array_column($lines, 'amount')), 2);
 
+            if (! empty($validated['air_conditioning']) && ! $field->offersAirConditioning()) {
+                throw ValidationException::withMessages(['air_conditioning' => 'Esa cancha no ofrece aire acondicionado con costo extra.']);
+            }
+            $surcharges = $field->surchargesFor($start, $end, ! empty($validated['air_conditioning']));
+
             $reservation = CourtReservation::query()->create([
                 'court_field_id' => $field->id,
                 'user_id' => $user?->id,
@@ -140,8 +146,10 @@ class ReservationController extends Controller
                 'starts_at' => $start->format('H:i:s'),
                 'ends_at' => $end->format('H:i:s'),
                 'hours' => $validated['hours'],
-                'amount' => (float) $field->price_per_hour * $validated['hours'] + $itemsAmount,
+                'amount' => (float) $field->price_per_hour * $validated['hours'] + $itemsAmount
+                    + $surcharges['air_conditioning_amount'] + $surcharges['lighting_amount'],
                 'items_amount' => $itemsAmount,
+                ...$surcharges,
                 'status' => $paidNow ? CourtReservation::STATUS_PAID : CourtReservation::STATUS_CONFIRMED,
                 'source' => 'admin',
                 'payment_method' => $paidNow ? $validated['payment'] : null,

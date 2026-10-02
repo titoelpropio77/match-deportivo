@@ -32,6 +32,7 @@ class StoreReservationRequest extends FormRequest
             'customer_phone' => ['nullable', 'string', 'max:30'],
             'payment' => ['required', Rule::in(['venue', ...array_keys(CourtReservation::PAYMENT_METHODS)])],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'air_conditioning' => ['sometimes', 'boolean'],
             // rental_item_id => quantity (0 = not rented).
             'rentals' => ['sometimes', 'array'],
             'rentals.*' => ['nullable', 'integer', 'between:0,20'],
@@ -65,6 +66,7 @@ class StoreReservationRequest extends FormRequest
             'customer_phone' => 'teléfono',
             'payment' => 'pago',
             'notes' => 'notas',
+            'air_conditioning' => 'aire acondicionado',
         ];
     }
 }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Court;
+use App\Models\EventAmenity;
 use App\Models\EventSpace;
 use App\Models\EventSpaceReservation;
 use App\Models\Sport;
@@ -38,9 +39,10 @@ class EventSpaceTest extends TestCase
             'price_per_hour' => 80,
             'capacity' => 25,
             'min_hours' => 2,
-            'amenities' => ['grill', 'tables_chairs'],
             'closing_time' => '23:00',
         ]);
+        // Amenity catalog seeded by the migration.
+        $this->grill->amenities()->sync(EventAmenity::query()->whereIn('key', ['grill', 'tables_chairs'])->pluck('id'));
     }
 
     /**
@@ -75,13 +77,26 @@ class EventSpaceTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.name', 'Parrillero La Brasa')
             ->assertJsonPath('data.0.type.label', 'Parrillero')
-            ->assertJsonPath('data.0.amenities.0.label', 'Parrilla')
+            ->assertJsonPath('data.0.amenities', [
+                ['key' => 'tables_chairs', 'label' => 'Mesas y sillas', 'icon' => 'fas fa-chair'],
+                ['key' => 'grill', 'label' => 'Parrilla', 'icon' => 'fas fa-fire'],
+            ])
             ->assertJsonPath('data.0.venue.name', 'Complejo Wally Sur')
             ->assertJsonPath('data.0.opening_time', '08:00')
             ->assertJsonPath('data.0.closing_time', '23:00');
 
         $this->getJson('/api/event-spaces?guests=30')->assertOk()->assertJsonCount(0, 'data');
         $this->getJson("/api/event-spaces?court_id={$this->court->id}")->assertJsonCount(1, 'data');
+    }
+
+    public function test_amenities_added_to_the_catalog_are_listed(): void
+    {
+        $projector = EventAmenity::query()->create(['key' => 'projector', 'name' => 'Proyector', 'icon' => 'fas fa-video']);
+        $this->grill->amenities()->attach($projector);
+
+        $this->getJson("/api/event-spaces/{$this->grill->id}")
+            ->assertOk()
+            ->assertJsonPath('data.amenities.2', ['key' => 'projector', 'label' => 'Proyector', 'icon' => 'fas fa-video']);
     }
 
     public function test_court_list_tells_whether_the_venue_rents_event_spaces(): void

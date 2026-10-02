@@ -29,6 +29,7 @@ class CourtBookingController extends Controller
             'items.*.date' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
             'items.*.start_time' => ['required', 'date_format:H:i'],
             'items.*.hours' => ['required', 'integer', 'between:1,24'],
+            'items.*.air_conditioning' => ['sometimes', 'boolean'],
             'items.*.rentals' => ['sometimes', 'array', 'max:10'],
             'items.*.rentals.*.rental_item_id' => ['required', 'integer', 'exists:rental_items,id'],
             'items.*.rentals.*.quantity' => ['required', 'integer', 'between:1,20'],
@@ -121,7 +122,7 @@ class CourtBookingController extends Controller
      */
     private function payload(Collection $reservations): array
     {
-        $reservations->load(['field.court', 'sport', 'items']);
+        $reservations->load(['field.court', 'field.features', 'sport', 'items']);
         $first = $reservations->first();
 
         return [

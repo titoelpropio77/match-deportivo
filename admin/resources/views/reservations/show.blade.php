@@ -51,8 +51,17 @@
                         <dt class="col-sm-4">Fecha</dt><dd class="col-sm-8">{{ ucfirst($reservation->reserved_on->locale('es')->isoFormat('dddd D [de] MMMM [de] YYYY')) }}</dd>
                         <dt class="col-sm-4">Horario</dt><dd class="col-sm-8">{{ $reservation->timeRange() }} ({{ $reservation->hours }} {{ $reservation->hours === 1 ? 'hora' : 'horas' }})</dd>
                         <dt class="col-sm-4">Precio por hora</dt><dd class="col-sm-8">{{ $bs($reservation->field->price_per_hour) }}</dd>
+                        @php($extrasAmount = $reservation->items_amount + $reservation->air_conditioning_amount + $reservation->lighting_amount)
+                        @if ($extrasAmount > 0)
+                            <dt class="col-sm-4">Cancha</dt><dd class="col-sm-8">{{ $bs($reservation->amount - $extrasAmount) }}</dd>
+                        @endif
+                        @if ($reservation->air_conditioning)
+                            <dt class="col-sm-4">Aire acondicionado</dt><dd class="col-sm-8"><i class="fas fa-snowflake text-muted mr-1"></i>{{ $bs($reservation->air_conditioning_amount) }}</dd>
+                        @endif
+                        @if ($reservation->lighting_amount > 0)
+                            <dt class="col-sm-4">Iluminación nocturna</dt><dd class="col-sm-8"><i class="fas fa-lightbulb text-muted mr-1"></i>{{ $bs($reservation->lighting_amount) }}</dd>
+                        @endif
                         @if ($reservation->items->isNotEmpty())
-                            <dt class="col-sm-4">Cancha</dt><dd class="col-sm-8">{{ $bs($reservation->amount - $reservation->items_amount) }}</dd>
                             <dt class="col-sm-4">Artículos alquilados</dt>
                             <dd class="col-sm-8">
                                 <ul class="list-unstyled mb-0">

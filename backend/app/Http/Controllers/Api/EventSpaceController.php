@@ -27,7 +27,7 @@ class EventSpaceController extends Controller
 
         $spaces = EventSpace::query()
             ->active()
-            ->with(['court.city', 'court.photos'])
+            ->with(['court.city', 'court.photos', 'amenities'])
             ->when(isset($validated['court_id']), fn ($query) => $query->where('court_id', $validated['court_id']))
             ->when(isset($validated['city_id']), fn ($query) => $query
                 ->whereHas('court', fn ($court) => $court->where('city_id', $validated['city_id'])))
@@ -43,7 +43,7 @@ class EventSpaceController extends Controller
     {
         abort_unless($eventSpace->is_active, 404);
 
-        $eventSpace->load(['court.city', 'court.photos']);
+        $eventSpace->load(['court.city', 'court.photos', 'amenities']);
 
         return response()->json(['data' => new EventSpaceResource($eventSpace)]);
     }

@@ -2,15 +2,21 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\CourtController;
+use App\Http\Controllers\CourtFeatureController;
 use App\Http\Controllers\CourtFieldController;
 use App\Http\Controllers\CourtManagerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EventAmenityController;
 use App\Http\Controllers\EventReservationController;
 use App\Http\Controllers\EventSpaceController;
+use App\Http\Controllers\ProductCategoryController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RentalItemController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\Settings\PermissionController;
 use App\Http\Controllers\Settings\RoleController;
+use App\Http\Controllers\StoreController;
+use App\Http\Controllers\StoreOrderController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -53,6 +59,56 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/courts/{court}/managers', [CourtManagerController::class, 'store'])->middleware('permission:courts.managers')->name('courts.managers.store');
     Route::delete('/courts/{court}/managers/{manager}', [CourtManagerController::class, 'destroy'])->middleware('permission:courts.managers')->name('courts.managers.destroy');
+
+    // Catálogo de características de las canchas físicas
+    Route::get('/court-features', [CourtFeatureController::class, 'index'])->middleware('permission:court_features.index')->name('court-features.index');
+    Route::get('/court-features/create', [CourtFeatureController::class, 'create'])->middleware('permission:court_features.store')->name('court-features.create');
+    Route::post('/court-features', [CourtFeatureController::class, 'store'])->middleware('permission:court_features.store')->name('court-features.store');
+    Route::get('/court-features/{courtFeature}/edit', [CourtFeatureController::class, 'edit'])->middleware('permission:court_features.update')->name('court-features.edit');
+    Route::put('/court-features/{courtFeature}', [CourtFeatureController::class, 'update'])->middleware('permission:court_features.update')->name('court-features.update');
+    Route::delete('/court-features/{courtFeature}', [CourtFeatureController::class, 'destroy'])->middleware('permission:court_features.destroy')->name('court-features.destroy');
+
+    // Catálogo de servicios de los espacios para eventos
+    Route::get('/event-amenities', [EventAmenityController::class, 'index'])->middleware('permission:event_amenities.index')->name('event-amenities.index');
+    Route::get('/event-amenities/create', [EventAmenityController::class, 'create'])->middleware('permission:event_amenities.store')->name('event-amenities.create');
+    Route::post('/event-amenities', [EventAmenityController::class, 'store'])->middleware('permission:event_amenities.store')->name('event-amenities.store');
+    Route::get('/event-amenities/{eventAmenity}/edit', [EventAmenityController::class, 'edit'])->middleware('permission:event_amenities.update')->name('event-amenities.edit');
+    Route::put('/event-amenities/{eventAmenity}', [EventAmenityController::class, 'update'])->middleware('permission:event_amenities.update')->name('event-amenities.update');
+    Route::delete('/event-amenities/{eventAmenity}', [EventAmenityController::class, 'destroy'])->middleware('permission:event_amenities.destroy')->name('event-amenities.destroy');
+
+    // Tiendas de los centros deportivos
+    Route::get('/stores', [StoreController::class, 'index'])->middleware('permission:stores.index')->name('stores.index');
+    Route::get('/stores/create', [StoreController::class, 'create'])->middleware('permission:stores.store')->name('stores.create');
+    Route::post('/stores', [StoreController::class, 'store'])->middleware('permission:stores.store')->name('stores.store');
+    Route::get('/stores/{store}', [StoreController::class, 'show'])->middleware('permission:stores.index')->name('stores.show');
+    Route::get('/stores/{store}/movements', [StoreController::class, 'movements'])->middleware('permission:stores.index')->name('stores.movements');
+    Route::get('/stores/{store}/edit', [StoreController::class, 'edit'])->middleware('permission:stores.update')->name('stores.edit');
+    Route::put('/stores/{store}', [StoreController::class, 'update'])->middleware('permission:stores.update')->name('stores.update');
+    Route::delete('/stores/{store}', [StoreController::class, 'destroy'])->middleware('permission:stores.destroy')->name('stores.destroy');
+
+    Route::get('/stores/{store}/products/create', [ProductController::class, 'create'])->middleware('permission:products.store')->name('stores.products.create');
+    Route::post('/stores/{store}/products', [ProductController::class, 'store'])->middleware('permission:products.store')->name('stores.products.store');
+    Route::get('/stores/{store}/products/{product}/edit', [ProductController::class, 'edit'])->middleware('permission:products.update')->scopeBindings()->name('stores.products.edit');
+    Route::put('/stores/{store}/products/{product}', [ProductController::class, 'update'])->middleware('permission:products.update')->scopeBindings()->name('stores.products.update');
+    Route::delete('/stores/{store}/products/{product}', [ProductController::class, 'destroy'])->middleware('permission:products.destroy')->scopeBindings()->name('stores.products.destroy');
+    Route::post('/stores/{store}/products/{product}/stock', [ProductController::class, 'moveStock'])->middleware('permission:products.stock')->scopeBindings()->name('stores.products.stock');
+
+    // Ventas de las tiendas
+    Route::get('/store-orders', [StoreOrderController::class, 'index'])->middleware('permission:store_orders.index')->name('store-orders.index');
+    Route::get('/store-orders/create', [StoreOrderController::class, 'create'])->middleware('permission:store_orders.store')->name('store-orders.create');
+    Route::post('/store-orders', [StoreOrderController::class, 'store'])->middleware('permission:store_orders.store')->name('store-orders.store');
+    Route::get('/store-orders/{order}', [StoreOrderController::class, 'show'])->middleware('permission:store_orders.show')->name('store-orders.show');
+    Route::post('/store-orders/{order}/deliver', [StoreOrderController::class, 'deliver'])->middleware('permission:store_orders.payments')->name('store-orders.deliver');
+    Route::post('/store-orders/{order}/cancel', [StoreOrderController::class, 'cancel'])->middleware('permission:store_orders.cancel')->name('store-orders.cancel');
+    Route::post('/store-orders/{order}/refund', [StoreOrderController::class, 'refund'])->middleware('permission:store_orders.payments')->name('store-orders.refund');
+
+    // Catálogo de categorías de productos
+    Route::get('/product-categories', [ProductCategoryController::class, 'index'])->middleware('permission:product_categories.index')->name('product-categories.index');
+    Route::get('/product-categories/create', [ProductCategoryController::class, 'create'])->middleware('permission:product_categories.store')->name('product-categories.create');
+    Route::post('/product-categories', [ProductCategoryController::class, 'store'])->middleware('permission:product_categories.store')->name('product-categories.store');
+    Route::get('/product-categories/{productCategory}/edit', [ProductCategoryController::class, 'edit'])->middleware('permission:product_categories.update')->name('product-categories.edit');
+    Route::put('/product-categories/{productCategory}', [ProductCategoryController::class, 'update'])->middleware('permission:product_categories.update')->name('product-categories.update');
+    Route::delete('/product-categories/{productCategory}', [ProductCategoryController::class, 'destroy'])->middleware('permission:product_categories.destroy')->name('product-categories.destroy');
 
     // Reservas de canchas
     Route::get('/reservations/agenda', [ReservationController::class, 'agenda'])->middleware('permission:reservations.index')->name('reservations.agenda');

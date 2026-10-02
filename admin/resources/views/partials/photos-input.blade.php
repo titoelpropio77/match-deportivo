@@ -1,14 +1,19 @@
 {{--
-    Venue gallery. New files are previewed before saving and can be added in several picks;
-    existing photos (edit) are marked with remove_photos[] and deleted on save.
+    Photo gallery of a venue or a product. New files are previewed before saving and can be added in
+    several picks; existing photos (edit) are marked with remove_photos[] and deleted on save.
+    Variables: $photos (models with id and src), $alt, $hint.
 --}}
-@php($removePhotos = array_map('intval', old('remove_photos', [])))
+@php
+    $removePhotos = array_map('intval', old('remove_photos', []));
+    $photos ??= collect();
+    $hint ??= 'JPG, PNG o WEBP, hasta 5 MB cada una.';
+@endphp
 
 <label class="mt-3">Galería de fotos</label>
 <div class="court-gallery" data-court-gallery>
-    @foreach ($court->exists ? $court->photos : [] as $photo)
+    @foreach ($photos as $photo)
         <div class="court-gallery-item {{ in_array($photo->id, $removePhotos, true) ? 'is-removed' : '' }}">
-            <img src="{{ $photo->src }}" alt="Foto de {{ $court->name }}" loading="lazy">
+            <img src="{{ $photo->src }}" alt="{{ $alt ?? 'Foto' }}" loading="lazy">
             <input type="checkbox" name="remove_photos[]" value="{{ $photo->id }}" class="d-none" @checked(in_array($photo->id, $removePhotos, true))>
             <button type="button" class="btn btn-xs btn-danger court-gallery-remove" data-toggle-remove title="Quitar / restaurar"><i class="fas fa-trash"></i></button>
             <span class="court-gallery-badge badge badge-danger">Se eliminará</span>
@@ -20,9 +25,7 @@
     </label>
 </div>
 <input type="file" id="photos_input" name="photos[]" accept="image/jpeg,image/png,image/webp" multiple class="d-none">
-<small class="form-text text-muted">
-    JPG, PNG o WEBP, hasta 5 MB cada una y 10 por centro deportivo. Se muestran en la app en este orden.
-</small>
+<small class="form-text text-muted">{{ $hint }}</small>
 @error('photos')<div class="text-danger small">{{ $message }}</div>@enderror
 @if ($errors->has('photos.*'))
     <div class="text-danger small">{{ $errors->first('photos.*') }} Vuelve a seleccionar las fotos.</div>

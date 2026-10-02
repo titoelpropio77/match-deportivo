@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Courts\CourtFieldRequest;
 use App\Models\Court;
+use App\Models\CourtFeature;
 use App\Models\CourtField;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,7 @@ class CourtFieldController extends Controller
         DB::transaction(function () use ($court, $validated): void {
             $field = $court->fields()->create($validated);
             $field->sports()->sync($validated['sports']);
+            $this->syncFeatures($field, $validated['features']);
         });
 
         return redirect()->route('courts.edit', $court)->with('success', "Cancha física {$validated['name']} agregada.");
@@ -33,6 +35,7 @@ class CourtFieldController extends Controller
         DB::transaction(function () use ($field, $validated): void {
             $field->update($validated);
             $field->sports()->sync($validated['sports']);
+            $this->syncFeatures($field, $validated['features']);
         });
 
         return redirect()->route('courts.edit', $court)->with('success', "Cancha física {$field->name} actualizada.");
@@ -45,5 +48,13 @@ class CourtFieldController extends Controller
         $field->delete();
 
         return redirect()->route('courts.edit', $court)->with('success', "Cancha física {$field->name} eliminada.");
+    }
+
+    /**
+     * @param  list<string>  $keys  court_features.key values checked in the form
+     */
+    private function syncFeatures(CourtField $field, array $keys): void
+    {
+        $field->features()->sync(CourtFeature::query()->whereIn('key', $keys)->pluck('id'));
     }
 }

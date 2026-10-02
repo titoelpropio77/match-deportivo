@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\MatchLevelController;
 use App\Http\Controllers\Api\PlayerProfileController;
 use App\Http\Controllers\Api\RentalItemController;
 use App\Http\Controllers\Api\SportController;
+use App\Http\Controllers\Api\StoreController;
+use App\Http\Controllers\Api\StoreOrderController;
 use App\Http\Controllers\Api\TeamController;
 use App\Http\Controllers\Api\TournamentController;
 use App\Http\Controllers\Api\UserController;
@@ -32,6 +34,10 @@ Route::get('/court-fields/{courtField}/availability', [CourtFieldController::cla
 Route::get('/event-spaces', [EventSpaceController::class, 'index']);
 Route::get('/event-spaces/{eventSpace}', [EventSpaceController::class, 'show'])->whereNumber('eventSpace');
 Route::get('/event-spaces/{eventSpace}/availability', [EventSpaceController::class, 'availability'])->whereNumber('eventSpace');
+Route::get('/product-categories', [StoreController::class, 'categories']);
+Route::get('/stores', [StoreController::class, 'index']);
+Route::get('/stores/{store}', [StoreController::class, 'show'])->whereNumber('store');
+Route::get('/stores/{store}/products', [StoreController::class, 'products'])->whereNumber('store');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
@@ -91,4 +97,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/event-space-reservations', [EventSpaceReservationController::class, 'store']);
     Route::post('/event-space-reservations/{reservation}/pay', [EventSpaceReservationController::class, 'pay'])->whereNumber('reservation');
     Route::post('/event-space-reservations/{reservation}/cancel', [EventSpaceReservationController::class, 'cancel'])->whereNumber('reservation');
+
+    Route::get('/store-orders', [StoreOrderController::class, 'mine']);
+    Route::post('/store-orders', [StoreOrderController::class, 'store']);
+    Route::post('/store-orders/{order}/pay', [StoreOrderController::class, 'pay'])->whereNumber('order');
+    Route::post('/store-orders/{order}/cancel', [StoreOrderController::class, 'cancel'])->whereNumber('order');
 });

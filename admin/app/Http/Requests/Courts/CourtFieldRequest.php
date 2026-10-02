@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\Courts;
 
-use App\Enums\CourtFieldFeature;
+use App\Models\CourtFeature;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -14,11 +14,20 @@ class CourtFieldRequest extends FormRequest
     protected $errorBag = 'field';
 
     /**
-     * Unchecked checkboxes are not sent: an empty selection must clear the stored options.
+     * Unchecked checkboxes are not sent: an empty selection must clear the stored options (and their prices).
      */
     protected function prepareForValidation(): void
     {
-        $this->merge(['features' => array_values(array_unique((array) $this->input('features', [])))]);
+        $features = array_values(array_unique((array) $this->input('features', [])));
+        $this->merge(['features' => $features]);
+
+        // Prices of options that are not checked are cleared.
+        if (! in_array(CourtFeature::AIR_CONDITIONING, $features, true)) {
+            $this->merge(['air_conditioning_price' => null]);
+        }
+        if (! in_array(CourtFeature::LIGHTING, $features, true)) {
+            $this->merge(['lighting_price' => null, 'lighting_from' => null]);
+        }
     }
 
     /**
@@ -40,7 +49,13 @@ class CourtFieldRequest extends FormRequest
             'dimensions' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string', 'max:2000'],
             'features' => ['array'],
-            'features.*' => [Rule::enum(CourtFieldFeature::class)],
+            // Keys of court_features.
+            'features.*' => ['string', Rule::exists('court_features', 'key')],
+            // Extra per hour when the player picks air conditioning (empty = included, no extra).
+            'air_conditioning_price' => ['nullable', 'numeric', 'min:0', 'max:999999'],
+            // Extra per hour charged automatically for the hours from lighting_from.
+            'lighting_price' => ['nullable', 'numeric', 'min:0', 'max:999999'],
+            'lighting_from' => ['nullable', 'required_with:lighting_price', 'date_format:H:i'],
             'sports' => ['required', 'array', 'min:1'],
             'sports.*' => ['integer', 'exists:sports,id'],
         ];
@@ -67,6 +82,9 @@ class CourtFieldRequest extends FormRequest
             'dimensions' => 'dimensiones',
             'description' => 'descripción',
             'features' => 'opciones adicionales',
+            'air_conditioning_price' => 'precio del aire acondicionado',
+            'lighting_price' => 'precio de la iluminación',
+            'lighting_from' => 'hora de encendido de la luz',
             'sports' => 'deportes',
         ];
     }

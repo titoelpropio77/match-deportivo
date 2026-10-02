@@ -6,6 +6,7 @@ use App\Models\Court;
 use App\Models\CourtField;
 use App\Models\CourtReservation;
 use App\Models\MatchModel;
+use App\Models\StoreOrder;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -40,6 +41,10 @@ class DashboardController extends Controller
                 'pendingRefunds' => $user->can('reservations.index')
                     ? $reservations()->where('status', CourtReservation::STATUS_CANCELLED)
                         ->whereNotNull('paid_at')->whereNull('refunded_at')->count()
+                    : 0,
+                // Paid store purchases (app or counter) not handed to the customer yet.
+                'ordersToDeliver' => $user->can('store_orders.index')
+                    ? StoreOrder::query()->visibleTo($user)->where('status', StoreOrder::STATUS_PAID)->whereNull('delivered_at')->count()
                     : 0,
             ],
             'upcomingReservations' => $user->can('reservations.index')

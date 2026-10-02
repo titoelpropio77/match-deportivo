@@ -42,6 +42,14 @@
         </div>
     @endif
 
+    @if ($stats['ordersToDeliver'] > 0)
+        <div class="alert alert-info">
+            <i class="fas fa-box-open mr-1"></i>
+            {{ $stats['ordersToDeliver'] === 1 ? 'Hay 1 compra pagada' : "Hay {$stats['ordersToDeliver']} compras pagadas" }} en tus tiendas esperando ser entregada{{ $stats['ordersToDeliver'] === 1 ? '' : 's' }}.
+            <a href="{{ route('store-orders.index', ['status' => 'ready']) }}" class="alert-link">Ver</a>
+        </div>
+    @endif
+
     @can('reservations.index')
         <div class="card">
             <div class="card-header">
