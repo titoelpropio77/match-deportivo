@@ -10,6 +10,8 @@
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
         "spatie/laravel-permission": "^8.3",
+        "yajra/laravel-datatables-buttons": "^13.0",
+        "yajra/laravel-datatables-html": "^13.0",
         "yajra/laravel-datatables-oracle": "^13.3"
     },
     "require-dev": {

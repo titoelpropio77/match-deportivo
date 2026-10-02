@@ -2,57 +2,33 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\UserDataTable;
+use App\Http\Requests\Users\UserRequest;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
 use Spatie\Permission\Models\Role;
-use Yajra\DataTables\Facades\DataTables;
 
 class UserController extends Controller
 {
-    public function index(): View
+    public function index(UserDataTable $dataTable): mixed
     {
-        return view('users.index');
-    }
-
-    /**
-     * Server-side DataTables source for the users list.
-     */
-    public function data(): JsonResponse
-    {
-        $query = User::query()
-            ->select(['id', 'name', 'nickname', 'email', 'phone', 'updated_at'])
-            ->with('roles:id,name');
-
-        return DataTables::eloquent($query)
-            ->addColumn('roles', fn (User $user) => view('users.partials.roles', ['user' => $user])->render())
-            ->filterColumn('roles', function ($query, $keyword): void {
-                $query->whereHas('roles', fn ($roles) => $roles->where('name', 'ilike', "%{$keyword}%"));
-            })
-            ->editColumn('email', fn (User $user) => view('partials.email', ['email' => $user->email])->render())
-            ->editColumn('updated_at', fn (User $user) => $user->updated_at?->diffForHumans())
-            ->addColumn('action', fn (User $user) => view('users.partials.actions', ['user' => $user])->render())
-            ->rawColumns(['roles', 'email', 'action'])
-            ->toJson();
+        return $dataTable->render('users.index');
     }
 
     public function create(): View
     {
         return view('users.create', [
             'user' => new User,
-            'roles' => $this->assignableRoles(),
+            'roles' => Auth::user()->grantableRoles(),
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(UserRequest $request): RedirectResponse
     {
-        $validated = $this->validateUser($request);
+        $validated = $request->validated();
 
         $user = User::query()->create($validated);
         $user->syncRoles($validated['roles'] ?? []);
@@ -73,14 +49,14 @@ class UserController extends Controller
 
         return view('users.edit', [
             'user' => $user,
-            'roles' => $this->assignableRoles(),
+            'roles' => Auth::user()->grantableRoles(),
         ]);
     }
 
-    public function update(Request $request, User $user): RedirectResponse
+    public function update(UserRequest $request, User $user): RedirectResponse
     {
         $this->ensureCanManage($user);
-        $validated = $this->validateUser($request, $user);
+        $validated = $request->validated();
 
         if (blank($validated['password'] ?? null)) {
             unset($validated['password']);
@@ -111,59 +87,11 @@ class UserController extends Controller
     }
 
     /**
-     * @return array<string, mixed>
-     */
-    private function validateUser(Request $request, ?User $user = null): array
-    {
-        return $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'nickname' => ['nullable', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user)],
-            'phone' => ['nullable', 'string', 'max:30'],
-            'gender' => ['nullable', Rule::in(array_keys(User::GENDERS))],
-            'preferred_position' => ['nullable', 'string', 'max:255'],
-            'password' => [$user ? 'nullable' : 'required', 'confirmed', Password::min(8)],
-            'roles' => ['sometimes', 'array'],
-            'roles.*' => ['string', Rule::in($this->assignableRoles()->pluck('name'))],
-        ], [], [
-            'name' => 'nombre',
-            'phone' => 'teléfono',
-            'gender' => 'género',
-            'preferred_position' => 'posición',
-            'password' => 'contraseña',
-        ]);
-    }
-
-    /**
-     * Roles the current user may grant: a superadmin grants any; anyone else only roles whose
-     * permissions they hold themselves (so nobody can create a user with more access than they have).
-     * superadmin is never assignable by others: it has no permissions but passes every check.
-     *
-     * @return Collection<int, Role>
-     */
-    private function assignableRoles(): Collection
-    {
-        $actor = Auth::user();
-        $roles = Role::query()->with('permissions:id,name')->orderBy('name')->get();
-
-        if ($actor->hasRole('superadmin')) {
-            return $roles;
-        }
-
-        $own = $actor->getAllPermissions()->pluck('name');
-
-        return $roles
-            ->reject(fn (Role $role) => $role->name === 'superadmin')
-            ->filter(fn (Role $role) => $role->permissions->pluck('name')->diff($own)->isEmpty())
-            ->values();
-    }
-
-    /**
      * Users holding a role the current user cannot grant (e.g. a superadmin) are off limits.
      */
     private function ensureCanManage(User $user): void
     {
-        $outOfReach = $user->getRoleNames()->diff($this->assignableRoles()->pluck('name'));
+        $outOfReach = $user->getRoleNames()->diff(Auth::user()->grantableRoles()->pluck('name'));
 
         abort_if(
             $outOfReach->isNotEmpty(),

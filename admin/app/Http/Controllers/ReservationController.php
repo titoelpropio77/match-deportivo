@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\ReservationDataTable;
+use App\Http\Requests\Reservations\AgendaRequest;
+use App\Http\Requests\Reservations\CancelReservationRequest;
+use App\Http\Requests\Reservations\RegisterPaymentRequest;
+use App\Http\Requests\Reservations\StoreReservationRequest;
 use App\Models\Court;
 use App\Models\CourtField;
 use App\Models\CourtReservation;
 use App\Models\RentalItem;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -18,124 +21,29 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
-use Yajra\DataTables\Facades\DataTables;
 
 /**
  * Reservations of the venues the user can see: partners their own venues, managers the assigned ones.
  */
 class ReservationController extends Controller
 {
-    /**
-     * Longest booking staff can register at once (the app allows up to 2 hours).
-     */
-    private const MAX_HOURS = 4;
-
-    /**
-     * Filters of the list => label. Some are derived (expired, refund_pending), see applyStatusFilter().
-     */
-    private const STATUS_FILTERS = [
-        'active' => 'Activas (ocupan horario)',
-        'pending_payment' => 'Pago pendiente',
-        'confirmed' => 'Confirmadas (pagan en el local)',
-        'paid' => 'Pagadas',
-        'cancelled' => 'Anuladas',
-        'refund_pending' => 'Devolución pendiente',
-        'expired' => 'Expiradas (sin pago)',
-    ];
-
-    public function index(Request $request): View
+    public function index(Request $request, ReservationDataTable $dataTable): mixed
     {
-        return view('reservations.index', [
+        return $dataTable->render('reservations.index', [
             'courts' => $this->visibleCourts($request->user()),
-            'statuses' => self::STATUS_FILTERS,
+            'statuses' => ReservationDataTable::STATUS_FILTERS,
             'sources' => CourtReservation::SOURCES,
             'filters' => $request->only(['court_id', 'status', 'source', 'date_from', 'date_to']),
         ]);
     }
 
     /**
-     * Server-side DataTables source, filtered by venue, status, source and date range.
-     */
-    public function data(Request $request): JsonResponse
-    {
-        $filters = $request->validate([
-            'court_id' => ['nullable', 'integer'],
-            'status' => ['nullable', Rule::in(array_keys(self::STATUS_FILTERS))],
-            'source' => ['nullable', Rule::in(array_keys(CourtReservation::SOURCES))],
-            'date_from' => ['nullable', 'date_format:Y-m-d'],
-            'date_to' => ['nullable', 'date_format:Y-m-d'],
-        ]);
-
-        $query = CourtReservation::query()
-            ->visibleTo($request->user())
-            ->select('court_reservations.*')
-            ->with(['field.court:id,name', 'sport:id,name', 'user:id,name,email,phone'])
-            ->when($filters['court_id'] ?? null, fn (Builder $query, $courtId) => $query
-                ->whereHas('field', fn (Builder $field) => $field->where('court_id', $courtId)))
-            ->when($filters['source'] ?? null, fn (Builder $query, $source) => $query->where('source', $source))
-            ->when($filters['date_from'] ?? null, fn (Builder $query, $from) => $query->whereDate('reserved_on', '>=', $from))
-            ->when($filters['date_to'] ?? null, fn (Builder $query, $to) => $query->whereDate('reserved_on', '<=', $to));
-        $this->applyStatusFilter($query, $filters['status'] ?? null);
-
-        return DataTables::eloquent($query)
-            ->addColumn('reference', fn (CourtReservation $reservation) => $reservation->reference())
-            ->filterColumn('reference', function (Builder $query, string $keyword): void {
-                $id = (int) preg_replace('/\D/', '', $keyword);
-                if ($id > 0) {
-                    $query->where('court_reservations.id', $id);
-                }
-            })
-            ->editColumn('reserved_on', fn (CourtReservation $reservation) => $reservation->reserved_on->format('d/m/Y'))
-            ->addColumn('schedule', fn (CourtReservation $reservation) => $reservation->timeRange())
-            ->addColumn('venue', fn (CourtReservation $reservation) => e($reservation->field->court->name)
-                .'<br><small class="text-muted">'.e($reservation->field->name).'</small>')
-            ->filterColumn('venue', function (Builder $query, string $keyword): void {
-                $query->whereHas('field', fn (Builder $field) => $field
-                    ->where('name', 'ilike', "%{$keyword}%")
-                    ->orWhereHas('court', fn (Builder $court) => $court->where('name', 'ilike', "%{$keyword}%")));
-            })
-            ->addColumn('sport', fn (CourtReservation $reservation) => e($reservation->sport?->name ?? '—'))
-            ->addColumn('customer', fn (CourtReservation $reservation) => e($reservation->customerName())
-                .($reservation->customerPhone() ? '<br><small class="text-muted">'.e($reservation->customerPhone()).'</small>' : ''))
-            ->filterColumn('customer', function (Builder $query, string $keyword): void {
-                $query->where(fn (Builder $customer) => $customer
-                    ->where('customer_name', 'ilike', "%{$keyword}%")
-                    ->orWhere('customer_phone', 'ilike', "%{$keyword}%")
-                    ->orWhereHas('user', fn (Builder $user) => $user
-                        ->where('name', 'ilike', "%{$keyword}%")
-                        ->orWhere('email', 'ilike', "%{$keyword}%")));
-            })
-            ->editColumn('amount', fn (CourtReservation $reservation) => 'Bs '.number_format((float) $reservation->amount, 2))
-            ->addColumn('status_badge', fn (CourtReservation $reservation) => view('reservations.partials.status', ['reservation' => $reservation])->render())
-            ->editColumn('source', fn (CourtReservation $reservation) => $reservation->source === 'admin' ? 'Panel' : 'App')
-            ->addColumn('action', fn (CourtReservation $reservation) => view('reservations.partials.actions', ['reservation' => $reservation])->render())
-            // Each sortable column falls back to date and time descending, so ties keep the latest first.
-            ->orderColumn('reserved_on', fn (Builder $query, string $direction) => $this->latestFirst(
-                $query->orderBy('court_reservations.reserved_on', $direction)->orderBy('court_reservations.starts_at', $direction)
-            ))
-            ->orderColumn('schedule', fn (Builder $query, string $direction) => $this->latestFirst(
-                $query->orderBy('court_reservations.starts_at', $direction)
-            ))
-            ->orderColumn('amount', fn (Builder $query, string $direction) => $this->latestFirst(
-                $query->orderBy('court_reservations.amount', $direction)
-            ))
-            ->orderColumn('source', fn (Builder $query, string $direction) => $this->latestFirst(
-                $query->orderBy('court_reservations.source', $direction)
-            ))
-            ->rawColumns(['venue', 'customer', 'status_badge', 'action'])
-            ->toJson();
-    }
-
-    /**
      * Day grid of one venue: courts as columns, hours as rows.
      */
-    public function agenda(Request $request): View
+    public function agenda(AgendaRequest $request): View
     {
         $courts = $this->visibleCourts($request->user());
-        $validated = $request->validate([
-            'court_id' => ['nullable', 'integer'],
-            'date' => ['nullable', 'date_format:Y-m-d'],
-        ]);
+        $validated = $request->validated();
 
         $court = $courts->firstWhere('id', (int) ($validated['court_id'] ?? 0)) ?? $courts->first();
         $date = Carbon::parse($validated['date'] ?? today()->toDateString())->startOfDay();
@@ -186,7 +94,7 @@ class ReservationController extends Controller
 
         return view('reservations.create', [
             'courts' => $courts,
-            'maxHours' => self::MAX_HOURS,
+            'maxHours' => StoreReservationRequest::MAX_HOURS,
             'paymentMethods' => CourtReservation::PAYMENT_METHODS,
             'prefill' => $request->only(['court_field_id', 'date', 'start_time']),
         ]);
@@ -196,37 +104,9 @@ class ReservationController extends Controller
      * Walk-in or phone booking registered by venue staff. Either linked to an app user (by email)
      * or just a customer name/phone. Paid now, or confirmed to be paid at the venue.
      */
-    public function store(Request $request): RedirectResponse
+    public function store(StoreReservationRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'court_field_id' => ['required', 'integer', 'exists:court_fields,id'],
-            'sport_id' => ['required', 'integer', 'exists:sports,id'],
-            'date' => ['required', 'date_format:Y-m-d', 'after_or_equal:today'],
-            'start_time' => ['required', 'date_format:H:i'],
-            'hours' => ['required', 'integer', 'between:1,'.self::MAX_HOURS],
-            'user_email' => ['nullable', 'email', 'exists:users,email'],
-            'customer_name' => ['required_without:user_email', 'nullable', 'string', 'max:255'],
-            'customer_phone' => ['nullable', 'string', 'max:30'],
-            'payment' => ['required', Rule::in(['venue', ...array_keys(CourtReservation::PAYMENT_METHODS)])],
-            'notes' => ['nullable', 'string', 'max:1000'],
-            // rental_item_id => quantity (0 = not rented).
-            'rentals' => ['sometimes', 'array'],
-            'rentals.*' => ['nullable', 'integer', 'between:0,20'],
-        ], [
-            'user_email.exists' => 'No hay ningún usuario de la app con ese email.',
-            'customer_name.required_without' => 'Indica el nombre del cliente o el email de su cuenta en la app.',
-        ], [
-            'court_field_id' => 'cancha',
-            'sport_id' => 'deporte',
-            'date' => 'fecha',
-            'start_time' => 'hora de inicio',
-            'hours' => 'horas',
-            'user_email' => 'email del cliente',
-            'customer_name' => 'nombre del cliente',
-            'customer_phone' => 'teléfono',
-            'payment' => 'pago',
-            'notes' => 'notas',
-        ]);
+        $validated = $request->validated();
 
         $field = CourtField::query()->with('court')->findOrFail($validated['court_field_id']);
         Gate::authorize('manage', $field->court);
@@ -294,13 +174,11 @@ class ReservationController extends Controller
      * Cancel a booking that still holds its slot. The reason is shown to the player in the app;
      * if it was paid, it stays as "refund pending" until marked as refunded.
      */
-    public function cancel(Request $request, CourtReservation $reservation): RedirectResponse
+    public function cancel(CancelReservationRequest $request, CourtReservation $reservation): RedirectResponse
     {
         $this->authorizeReservation($reservation);
 
-        $validated = $request->validateWithBag('cancel', [
-            'cancellation_reason' => ['required', 'string', 'min:5', 'max:500'],
-        ], [], ['cancellation_reason' => 'motivo de anulación']);
+        $validated = $request->validated();
 
         if (! $reservation->canBeCancelled()) {
             return back()->with('error', 'Esta reserva ya no se puede anular.');
@@ -324,13 +202,11 @@ class ReservationController extends Controller
     /**
      * Payment collected at the venue for a confirmed or pending booking.
      */
-    public function registerPayment(Request $request, CourtReservation $reservation): RedirectResponse
+    public function registerPayment(RegisterPaymentRequest $request, CourtReservation $reservation): RedirectResponse
     {
         $this->authorizeReservation($reservation);
 
-        $validated = $request->validateWithBag('payment', [
-            'payment_method' => ['required', Rule::in(array_keys(CourtReservation::PAYMENT_METHODS))],
-        ], [], ['payment_method' => 'método de pago']);
+        $validated = $request->validated();
 
         if (! $reservation->canRegisterPayment()) {
             return back()->with('error', 'Esta reserva no tiene un pago pendiente.');
@@ -371,30 +247,6 @@ class ReservationController extends Controller
     private function visibleCourts(User $user)
     {
         return Court::query()->visibleTo($user)->orderBy('name')->get();
-    }
-
-    private function latestFirst(Builder $query): Builder
-    {
-        return $query->orderByDesc('court_reservations.reserved_on')
-            ->orderByDesc('court_reservations.starts_at')
-            ->orderByDesc('court_reservations.id');
-    }
-
-    private function applyStatusFilter(Builder $query, ?string $status): void
-    {
-        $expiredBefore = now()->subMinutes(CourtReservation::PAYMENT_WINDOW_MINUTES);
-
-        match ($status) {
-            'active' => $query->blocking(),
-            'pending_payment' => $query->where('status', CourtReservation::STATUS_PENDING_PAYMENT)
-                ->where('court_reservations.created_at', '>=', $expiredBefore),
-            'expired' => $query->where('status', CourtReservation::STATUS_PENDING_PAYMENT)
-                ->where('court_reservations.created_at', '<', $expiredBefore),
-            'refund_pending' => $query->where('status', CourtReservation::STATUS_CANCELLED)
-                ->whereNotNull('paid_at')->whereNull('refunded_at'),
-            'confirmed', 'paid', 'cancelled' => $query->where('status', $status),
-            default => null,
-        };
     }
 
     /**

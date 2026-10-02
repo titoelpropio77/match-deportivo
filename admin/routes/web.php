@@ -31,7 +31,6 @@ Route::middleware('auth')->group(function () {
         ->name('dashboard');
 
     // Centros deportivos
-    Route::get('/courts/data', [CourtController::class, 'data'])->middleware('permission:courts.index')->name('courts.data');
     Route::get('/courts', [CourtController::class, 'index'])->middleware('permission:courts.index')->name('courts.index');
     Route::get('/courts/create', [CourtController::class, 'create'])->middleware('permission:courts.store')->name('courts.create');
     Route::post('/courts', [CourtController::class, 'store'])->middleware('permission:courts.store')->name('courts.store');
@@ -56,7 +55,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/courts/{court}/managers/{manager}', [CourtManagerController::class, 'destroy'])->middleware('permission:courts.managers')->name('courts.managers.destroy');
 
     // Reservas de canchas
-    Route::get('/reservations/data', [ReservationController::class, 'data'])->middleware('permission:reservations.index')->name('reservations.data');
     Route::get('/reservations/agenda', [ReservationController::class, 'agenda'])->middleware('permission:reservations.index')->name('reservations.agenda');
     Route::get('/reservations', [ReservationController::class, 'index'])->middleware('permission:reservations.index')->name('reservations.index');
     Route::get('/reservations/create', [ReservationController::class, 'create'])->middleware('permission:reservations.store')->name('reservations.create');
@@ -67,7 +65,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/reservations/{reservation}/refund', [ReservationController::class, 'refund'])->middleware('permission:reservations.payments')->name('reservations.refund');
 
     // Reservas de espacios para eventos
-    Route::get('/event-reservations/data', [EventReservationController::class, 'data'])->middleware('permission:event_reservations.index')->name('event-reservations.data');
     Route::get('/event-reservations', [EventReservationController::class, 'index'])->middleware('permission:event_reservations.index')->name('event-reservations.index');
     Route::get('/event-reservations/create', [EventReservationController::class, 'create'])->middleware('permission:event_reservations.store')->name('event-reservations.create');
     Route::post('/event-reservations', [EventReservationController::class, 'store'])->middleware('permission:event_reservations.store')->name('event-reservations.store');
@@ -77,7 +74,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/event-reservations/{reservation}/refund', [EventReservationController::class, 'refund'])->middleware('permission:event_reservations.payments')->name('event-reservations.refund');
 
     // Torneos
-    Route::get('/tournaments/data', [TournamentController::class, 'data'])->middleware('permission:tournaments.index')->name('tournaments.data');
     Route::get('/tournaments', [TournamentController::class, 'index'])->middleware('permission:tournaments.index')->name('tournaments.index');
     Route::get('/tournaments/create', [TournamentController::class, 'create'])->middleware('permission:tournaments.store')->name('tournaments.create');
     Route::post('/tournaments', [TournamentController::class, 'store'])->middleware('permission:tournaments.store')->name('tournaments.store');
@@ -95,7 +91,6 @@ Route::middleware('auth')->group(function () {
     Route::delete('/tournaments/{tournament}/games/{game}', [TournamentController::class, 'destroyGame'])->middleware('permission:tournaments.games')->scopeBindings()->name('tournaments.games.destroy');
 
     // Usuarios
-    Route::get('/users/data', [UserController::class, 'data'])->middleware('permission:users.index')->name('users.data');
     Route::get('/users', [UserController::class, 'index'])->middleware('permission:users.index')->name('users.index');
     Route::get('/users/create', [UserController::class, 'create'])->middleware('permission:users.store')->name('users.create');
     Route::post('/users', [UserController::class, 'store'])->middleware('permission:users.store')->name('users.store');
@@ -106,7 +101,6 @@ Route::middleware('auth')->group(function () {
 
     // Configuración: roles y permisos
     Route::prefix('settings')->name('settings.')->group(function () {
-        Route::get('/permissions/data', [PermissionController::class, 'data'])->middleware('permission:permissions.index')->name('permissions.data');
         Route::get('/permissions', [PermissionController::class, 'index'])->middleware('permission:permissions.index')->name('permissions.index');
         Route::get('/permissions/create', [PermissionController::class, 'create'])->middleware('permission:permissions.store')->name('permissions.create');
         Route::post('/permissions', [PermissionController::class, 'store'])->middleware('permission:permissions.store')->name('permissions.store');
@@ -115,7 +109,6 @@ Route::middleware('auth')->group(function () {
         Route::delete('/permissions/{permission}', [PermissionController::class, 'destroy'])->middleware('permission:permissions.destroy')->name('permissions.destroy');
         Route::post('/permissions/{permission}/roles/{role}', [PermissionController::class, 'toggle'])->middleware('permission:permissions.assign')->name('permissions.toggle');
 
-        Route::get('/roles/data', [RoleController::class, 'data'])->middleware('permission:roles.index')->name('roles.data');
         Route::get('/roles', [RoleController::class, 'index'])->middleware('permission:roles.index')->name('roles.index');
         Route::get('/roles/create', [RoleController::class, 'create'])->middleware('permission:roles.store')->name('roles.create');
         Route::post('/roles', [RoleController::class, 'store'])->middleware('permission:roles.store')->name('roles.store');

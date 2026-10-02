@@ -2,48 +2,23 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\DataTables\RoleDataTable;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Settings\RoleRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
-use Yajra\DataTables\Facades\DataTables;
 
 class RoleController extends Controller
 {
-    private const PROTECTED_ROLES = ['superadmin'];
+    public const PROTECTED_ROLES = ['superadmin'];
 
-    public function index(): View
+    public function index(RoleDataTable $dataTable): mixed
     {
-        return view('settings.roles.index');
-    }
-
-    /**
-     * Server-side DataTables source for the roles list.
-     */
-    public function data(): JsonResponse
-    {
-        $query = Role::query()->withCount(['permissions', 'users']);
-
-        return DataTables::eloquent($query)
-            ->editColumn('name', fn (Role $role) => '<strong>'.e($role->name).'</strong>')
-            ->editColumn('permissions_count', fn (Role $role) => in_array($role->name, self::PROTECTED_ROLES, true)
-                ? '<span class="badge badge-danger">todos</span>'
-                : '<span class="badge badge-primary">'.$role->permissions_count.'</span>')
-            ->editColumn('users_count', fn (Role $role) => '<span class="badge badge-secondary">'.$role->users_count.'</span>')
-            ->orderColumn('permissions_count', 'permissions_count $1')
-            ->orderColumn('users_count', 'users_count $1')
-            ->editColumn('created_at', fn (Role $role) => $role->created_at?->diffForHumans())
-            ->addColumn('action', fn (Role $role) => view('settings.roles.partials.actions', [
-                'role' => $role,
-                'protected' => in_array($role->name, self::PROTECTED_ROLES, true),
-            ])->render())
-            ->rawColumns(['name', 'permissions_count', 'users_count', 'action'])
-            ->toJson();
+        return $dataTable->render('settings.roles.index');
     }
 
     public function create(): View
@@ -55,9 +30,9 @@ class RoleController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(RoleRequest $request): RedirectResponse
     {
-        $validated = $this->validateRole($request);
+        $validated = $request->validated();
 
         $role = Role::create(['name' => $validated['name'], 'guard_name' => 'web']);
         $role->syncPermissions($validated['permissions'] ?? []);
@@ -74,13 +49,13 @@ class RoleController extends Controller
         ]);
     }
 
-    public function update(Request $request, Role $role): RedirectResponse
+    public function update(RoleRequest $request, Role $role): RedirectResponse
     {
         if ($this->isProtected($role)) {
             return back()->with('error', 'El rol superadmin no se puede modificar: siempre tiene todos los permisos.');
         }
 
-        $validated = $this->validateRole($request, $role);
+        $validated = $request->validated();
 
         $role->update(['name' => $validated['name']]);
         $role->syncPermissions($validated['permissions'] ?? []);
@@ -97,29 +72,6 @@ class RoleController extends Controller
         $role->delete();
 
         return response()->json(['message' => "Rol {$role->name} eliminado."]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function validateRole(Request $request, ?Role $role = null): array
-    {
-        return $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:125',
-                'regex:/^[a-z0-9_]+$/',
-                Rule::unique('roles', 'name')->where('guard_name', 'web')->ignore($role),
-            ],
-            'permissions' => ['sometimes', 'array'],
-            'permissions.*' => ['string', Rule::exists('permissions', 'name')->where('guard_name', 'web')],
-        ], [
-            'name.regex' => 'Usa solo minúsculas, números y guion bajo (ej: admin_cancha).',
-        ], [
-            'name' => 'nombre',
-            'permissions' => 'permisos',
-        ]);
     }
 
     /**

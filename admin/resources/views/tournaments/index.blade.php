@@ -43,55 +43,20 @@
                     </select>
                 </div>
             </form>
-            <table id="tournaments-table" class="table table-hover w-100">
-                <thead>
-                <tr>
-                    <th>Id</th>
-                    <th>Torneo</th>
-                    <th>Centro deportivo</th>
-                    <th>Deporte</th>
-                    <th>Inicio</th>
-                    <th class="text-center">Equipos</th>
-                    <th>Inscripción</th>
-                    <th>Estado</th>
-                    <th class="no-export no-colvis">Acción</th>
-                </tr>
-                </thead>
-            </table>
+            {!! $dataTable->table() !!}
         </div>
     </div>
 @endsection
 
 @push('scripts')
+    {!! $dataTable->scripts() !!}
     <script>
         (function () {
             const $filters = $('#tournament-filters');
-            const table = AdminTable.init('#tournaments-table', {
-                processing: true,
-                serverSide: true,
-                stateSave: false,
-                ajax: {
-                    url: @json(route('tournaments.data')),
-                    data: function (params) {
-                        $filters.serializeArray().forEach(function (field) {
-                            if (field.value) params[field.name] = field.value;
-                        });
-                    },
-                },
-                order: [[4, 'desc']],
-                columns: [
-                    { data: 'id', name: 'id' },
-                    { data: 'name', name: 'name' },
-                    { data: 'venue', name: 'venue', orderable: false },
-                    { data: 'sport', name: 'sport', orderable: false, searchable: false },
-                    { data: 'starts_on', name: 'starts_on', searchable: false },
-                    { data: 'teams', name: 'teams', orderable: false, searchable: false, className: 'text-center' },
-                    { data: 'entry_fee', name: 'entry_fee', searchable: false },
-                    { data: 'status_badge', name: 'status', orderable: false, searchable: false },
-                    { data: 'action', name: 'action', orderable: false, searchable: false },
-                ],
-            });
-            $filters.on('change', 'select', function () { table.ajax.reload(); });
+            const reload = function () { window.LaravelDataTables['tournaments-table'].ajax.reload(); };
+            $filters.on('change', 'select, input', reload);
+            $filters.on('reset', function () { setTimeout(reload); });
+            $filters.on('submit', function (event) { event.preventDefault(); });
         })();
     </script>
 @endpush

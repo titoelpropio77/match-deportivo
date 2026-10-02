@@ -46,59 +46,19 @@
                 </div>
             </form>
 
-            <table id="event-reservations-table" class="table table-hover w-100">
-                <thead>
-                <tr>
-                    <th>Código</th>
-                    <th>Fecha</th>
-                    <th>Horario</th>
-                    <th>Centro / espacio</th>
-                    <th>Evento</th>
-                    <th>Cliente</th>
-                    <th>Monto</th>
-                    <th>Estado</th>
-                    <th>Origen</th>
-                    <th class="no-export no-colvis">Acción</th>
-                </tr>
-                </thead>
-            </table>
+            {!! $dataTable->table() !!}
         </div>
     </div>
 @endsection
 
 @push('scripts')
+    {!! $dataTable->scripts() !!}
     <script>
         (function () {
             const $filters = $('#event-reservation-filters');
-            const table = AdminTable.init('#event-reservations-table', {
-                processing: true,
-                serverSide: true,
-                stateSave: false,
-                ajax: {
-                    url: @json(route('event-reservations.data')),
-                    data: function (params) {
-                        $filters.serializeArray().forEach(function (field) {
-                            if (field.value) params[field.name] = field.value;
-                        });
-                    },
-                },
-                order: [[1, 'desc']],
-                columns: [
-                    { data: 'code', name: 'code' },
-                    { data: 'reserved_on', name: 'reserved_on', searchable: false },
-                    { data: 'schedule', name: 'schedule', orderable: false, searchable: false },
-                    { data: 'venue', name: 'venue', orderable: false },
-                    { data: 'event', name: 'event', orderable: false, searchable: false },
-                    { data: 'customer', name: 'customer', orderable: false },
-                    { data: 'amount', name: 'amount', searchable: false, className: 'text-right' },
-                    { data: 'status_badge', name: 'status', orderable: false, searchable: false },
-                    { data: 'source', name: 'source', searchable: false },
-                    { data: 'action', name: 'action', orderable: false, searchable: false },
-                ],
-            });
-
-            $filters.on('change', 'select, input', function () { table.ajax.reload(); });
-            $filters.on('reset', function () { setTimeout(function () { table.ajax.reload(); }); });
+            const reload = function () { window.LaravelDataTables['event-reservations-table'].ajax.reload(); };
+            $filters.on('change', 'select, input', reload);
+            $filters.on('reset', function () { setTimeout(reload); });
             $filters.on('submit', function (event) { event.preventDefault(); });
         })();
     </script>

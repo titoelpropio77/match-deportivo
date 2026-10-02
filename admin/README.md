@@ -73,11 +73,25 @@ Sin key, el formulario muestra un aviso y deja escribir latitud/longitud a mano.
 
 ## Tablas (DataTables)
 
-Todas las tablas usan [Yajra Laravel DataTables](https://yajrabox.com/docs/laravel-datatables) server-side: cada listado tiene un endpoint `.../data` con el mismo permiso que su `index`.
+Todas las tablas usan [Yajra Laravel DataTables](https://yajrabox.com/docs/laravel-datatables) server-side y se definen como clases en `app/DataTables/` (una por listado, todas heredan de `BaseDataTable`):
 
-- En el controlador: `DataTables::eloquent($query)` con `addColumn` / `editColumn` (el HTML de acciones y badges va en partials `*/partials/*.blade.php` y se declara en `rawColumns`), `filterColumn` para buscar en columnas calculadas y `orderColumn` para ordenarlas.
-- En la vista: `AdminTable.init('#tabla', { serverSide: true, ajax: ..., columns: [...] })` (`public/js/admin.js`) monta la barra Exportar / Refrescar / Imprimir / Reiniciar / Columnas.
+- `query()`: la consulta (alcance del usuario con `visibleTo`, filtros validados).
+- `dataTable()`: `addColumn` / `editColumn` (el HTML de acciones y badges va en partials `*/partials/*.blade.php` y se declara en `rawColumns`), `filterColumn` para buscar en columnas calculadas y `orderColumn` para ordenarlas.
+- `getColumns()`: columnas con `Column::make('campo')->title('Título')`; la de acciones con `$this->actionColumn()`.
+- Opcionales: `defaultOrder()`, `filtersForm()` (id del formulario de filtros que se envía con cada petición) y `parameters()` (opciones extra de DataTables).
+- En el controlador: `index(XDataTable $dataTable)` devuelve `$dataTable->render('vista', [...])`; la misma URL entrega la página y responde el AJAX.
+- En la vista: `{!! $dataTable->table() !!}` y `{!! $dataTable->scripts() !!}`. La plantilla `resources/views/datatables/admin-script.blade.php` monta la tabla con `AdminTable.init()` (`public/js/admin.js`), que agrega la barra Exportar / Refrescar / Imprimir / Reiniciar / Columnas, y la deja en `window.LaravelDataTables['<id>']`.
 - Eliminar: botón con `data-delete-url` y `data-table` (confirmación SweetAlert + DELETE por AJAX que responde JSON y recarga la tabla).
+
+## Validación (FormRequests)
+
+Toda la validación vive en `app/Http/Requests/<Módulo>/` (no se usa `$request->validate()` en los controladores):
+
+- `rules()`, `messages()` y `attributes()` con los nombres de campo en español.
+- Formularios en modal: `protected $errorBag = '...'` para que la vista reabra el modal con sus errores.
+- `prepareForValidation()` para normalizar (checkboxes no enviados), `after()` para reglas que consultan la BD o el registro de la ruta.
+- Requests ligados a un centro deportivo autorizan con `CourtPolicy` en `authorize()`.
+- Los filtros de las DataTables se validan inyectando su request en `query()`.
 
 ## Roles y permisos
 

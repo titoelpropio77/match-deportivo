@@ -13,6 +13,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Court extends Model
 {
+    /**
+     * Photos the gallery of a venue admits.
+     */
+    public const MAX_PHOTOS = 10;
+
     protected $fillable = [
         'owner_id',
         'city_id',

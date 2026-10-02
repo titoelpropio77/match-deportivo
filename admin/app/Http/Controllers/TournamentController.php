@@ -2,6 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTables\TournamentDataTable;
+use App\Http\Requests\Reservations\CancelReservationRequest;
+use App\Http\Requests\Tournaments\RegistrationPaymentRequest;
+use App\Http\Requests\Tournaments\TournamentGameRequest;
+use App\Http\Requests\Tournaments\TournamentRequest;
+use App\Http\Requests\Tournaments\TournamentStatusRequest;
 use App\Models\Court;
 use App\Models\CourtPhoto;
 use App\Models\MatchLevel;
@@ -10,68 +16,26 @@ use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentGame;
 use App\Models\TournamentRegistration;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
-use Yajra\DataTables\Facades\DataTables;
 
 /**
  * Tournaments of the venues the user can see: partners their own venues, managers the assigned ones.
  */
 class TournamentController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, TournamentDataTable $dataTable): mixed
     {
-        return view('tournaments.index', [
+        return $dataTable->render('tournaments.index', [
             'courts' => Court::query()->visibleTo($request->user())->orderBy('name')->get(['id', 'name']),
             'statuses' => Tournament::STATUSES,
             'sports' => Sport::query()->orderBy('name')->get(['id', 'name']),
         ]);
-    }
-
-    public function data(Request $request): JsonResponse
-    {
-        $filters = $request->validate([
-            'court_id' => ['nullable', 'integer'],
-            'status' => ['nullable', Rule::in(array_keys(Tournament::STATUSES))],
-            'sport_id' => ['nullable', 'integer'],
-        ]);
-
-        $query = Tournament::query()
-            ->visibleTo($request->user())
-            ->select('tournaments.*')
-            ->with(['court:id,name', 'sport:id,name'])
-            ->withCount([
-                'registrations as confirmed_count' => fn (Builder $query) => $query->where('status', TournamentRegistration::STATUS_CONFIRMED),
-            ])
-            ->when($filters['court_id'] ?? null, fn (Builder $query, $id) => $query->where('court_id', $id))
-            ->when($filters['status'] ?? null, fn (Builder $query, $status) => $query->where('status', $status))
-            ->when($filters['sport_id'] ?? null, fn (Builder $query, $id) => $query->where('sport_id', $id));
-
-        return DataTables::eloquent($query)
-            ->editColumn('name', fn (Tournament $tournament) => e($tournament->name)
-                .'<br><small class="text-muted">'.e(Tournament::FORMATS[$tournament->format] ?? $tournament->format).'</small>')
-            ->addColumn('venue', fn (Tournament $tournament) => e($tournament->court->name))
-            ->filterColumn('venue', function (Builder $query, string $keyword): void {
-                $query->whereHas('court', fn (Builder $court) => $court->where('name', 'ilike', "%{$keyword}%"));
-            })
-            ->addColumn('sport', fn (Tournament $tournament) => e($tournament->sport->name))
-            ->editColumn('starts_on', fn (Tournament $tournament) => $tournament->starts_on->format('d/m/Y'))
-            ->orderColumn('starts_on', fn (Builder $query, string $direction) => $query->orderBy('starts_on', $direction)->orderByDesc('tournaments.id'))
-            ->addColumn('teams', fn (Tournament $tournament) => $tournament->confirmed_count.' / '.$tournament->max_teams)
-            ->editColumn('entry_fee', fn (Tournament $tournament) => (float) $tournament->entry_fee > 0
-                ? 'Bs '.number_format((float) $tournament->entry_fee, 2)
-                : '<span class="badge badge-light">Gratis</span>')
-            ->addColumn('status_badge', fn (Tournament $tournament) => '<span class="badge badge-'.$tournament->statusColor().'">'.e($tournament->statusLabel()).'</span>')
-            ->addColumn('action', fn (Tournament $tournament) => view('tournaments.partials.actions', ['tournament' => $tournament])->render())
-            ->rawColumns(['name', 'entry_fee', 'status_badge', 'action'])
-            ->toJson();
     }
 
     public function create(Request $request): View
@@ -89,9 +53,9 @@ class TournamentController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(TournamentRequest $request): RedirectResponse
     {
-        $validated = $this->validateTournament($request);
+        $validated = $request->validated();
         Gate::authorize('manage', Court::query()->findOrFail($validated['court_id']));
 
         $tournament = DB::transaction(function () use ($validated, $request): Tournament {
@@ -141,10 +105,10 @@ class TournamentController extends Controller
         return view('tournaments.edit', ['tournament' => $tournament, ...$this->formOptions($request)]);
     }
 
-    public function update(Request $request, Tournament $tournament): RedirectResponse
+    public function update(TournamentRequest $request, Tournament $tournament): RedirectResponse
     {
         $this->authorizeTournament($tournament);
-        $validated = $this->validateTournament($request, $tournament);
+        $validated = $request->validated();
         Gate::authorize('manage', Court::query()->findOrFail($validated['court_id']));
 
         $previousCover = $tournament->cover_path;
@@ -165,10 +129,10 @@ class TournamentController extends Controller
     /**
      * Quick status change from the detail (open/close registrations, start, finish, cancel).
      */
-    public function changeStatus(Request $request, Tournament $tournament): RedirectResponse
+    public function changeStatus(TournamentStatusRequest $request, Tournament $tournament): RedirectResponse
     {
         $this->authorizeTournament($tournament);
-        $validated = $request->validate(['status' => ['required', Rule::in(array_keys(Tournament::STATUSES))]]);
+        $validated = $request->validated();
 
         if ($validated['status'] === 'open' && $tournament->registration_closes_at->isPast()) {
             return back()->with('error', 'El cierre de inscripciones ya pasó: edita la fecha antes de abrirlas.');
@@ -200,12 +164,10 @@ class TournamentController extends Controller
 
     // ── Registrations ─────────────────────────────────────────────────────────
 
-    public function cancelRegistration(Request $request, Tournament $tournament, TournamentRegistration $registration): RedirectResponse
+    public function cancelRegistration(CancelReservationRequest $request, Tournament $tournament, TournamentRegistration $registration): RedirectResponse
     {
         $this->authorizeTournament($tournament);
-        $validated = $request->validateWithBag('cancel', [
-            'cancellation_reason' => ['required', 'string', 'min:5', 'max:500'],
-        ], [], ['cancellation_reason' => 'motivo']);
+        $validated = $request->validated();
 
         if ($registration->status === TournamentRegistration::STATUS_CANCELLED) {
             return back()->with('error', 'La inscripción ya estaba anulada.');
@@ -229,10 +191,10 @@ class TournamentController extends Controller
     /**
      * Entry fee paid at the venue (cash/transfer) for a pending registration.
      */
-    public function registerPayment(Request $request, Tournament $tournament, TournamentRegistration $registration): RedirectResponse
+    public function registerPayment(RegistrationPaymentRequest $request, Tournament $tournament, TournamentRegistration $registration): RedirectResponse
     {
         $this->authorizeTournament($tournament);
-        $validated = $request->validate(['payment_method' => ['required', Rule::in(['cash', 'transfer', 'qr'])]]);
+        $validated = $request->validated();
 
         if ($registration->status !== TournamentRegistration::STATUS_PENDING_PAYMENT) {
             return back()->with('error', 'Esa inscripción no tiene un pago pendiente.');
@@ -265,10 +227,10 @@ class TournamentController extends Controller
 
     // ── Fixture ───────────────────────────────────────────────────────────────
 
-    public function storeGame(Request $request, Tournament $tournament): RedirectResponse
+    public function storeGame(TournamentGameRequest $request, Tournament $tournament): RedirectResponse
     {
         $this->authorizeTournament($tournament);
-        $tournament->games()->create($this->validateGame($request, $tournament));
+        $tournament->games()->create($request->gameData());
 
         return redirect()->to(route('tournaments.show', $tournament).'#fixture')->with('success', 'Partido agregado al fixture.');
     }
@@ -276,12 +238,12 @@ class TournamentController extends Controller
     /**
      * Edit a game: teams, date, court and/or result.
      */
-    public function updateGame(Request $request, Tournament $tournament, TournamentGame $game): RedirectResponse
+    public function updateGame(TournamentGameRequest $request, Tournament $tournament, TournamentGame $game): RedirectResponse
     {
         $this->authorizeTournament($tournament);
         abort_unless($game->tournament_id === $tournament->id, 404);
 
-        $validated = $this->validateGame($request, $tournament);
+        $validated = $request->gameData();
         // A result marks the game as played.
         if (isset($validated['home_score'], $validated['away_score']) && ($validated['status'] ?? null) === TournamentGame::STATUS_SCHEDULED) {
             $validated['status'] = TournamentGame::STATUS_PLAYED;
@@ -371,88 +333,5 @@ class TournamentController extends Controller
             'genders' => Tournament::GENDERS,
             'statuses' => Tournament::STATUSES,
         ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function validateTournament(Request $request, ?Tournament $tournament = null): array
-    {
-        return $request->validate([
-            'name' => ['required', 'string', 'max:120'],
-            'court_id' => ['required', 'integer', 'exists:courts,id'],
-            'sport_id' => ['required', 'integer', 'exists:sports,id'],
-            'level_id' => ['nullable', 'integer', 'exists:match_levels,id'],
-            'format' => ['required', Rule::in(array_keys(Tournament::FORMATS))],
-            'gender' => ['required', Rule::in(array_keys(Tournament::GENDERS))],
-            'entry_fee' => ['required', 'numeric', 'min:0', 'max:100000'],
-            'prizes' => ['nullable', 'string', 'max:2000'],
-            'max_teams' => ['required', 'integer', 'min:2', 'max:256'],
-            'min_players_per_team' => ['required', 'integer', 'min:1', 'max:50'],
-            'max_players_per_team' => ['nullable', 'integer', 'gte:min_players_per_team', 'max:60'],
-            'registration_closes_at' => ['required', 'date', $tournament ? 'nullable' : 'after:now'],
-            'starts_on' => array_filter(['required', 'date', $request->filled('registration_closes_at')
-                ? 'after_or_equal:'.substr((string) $request->input('registration_closes_at'), 0, 10)
-                : null]),
-            'ends_on' => ['nullable', 'date', 'after_or_equal:starts_on'],
-            'status' => ['required', Rule::in(array_keys(Tournament::STATUSES))],
-            'description' => ['nullable', 'string', 'max:5000'],
-            'rules' => ['nullable', 'string', 'max:10000'],
-            'cover' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
-            'remove_cover' => ['sometimes', 'boolean'],
-        ], [
-            'starts_on.after_or_equal' => 'El torneo debe empezar después del cierre de inscripciones.',
-            'max_players_per_team.gte' => 'El máximo de jugadores no puede ser menor al mínimo.',
-            'registration_closes_at.after' => 'El cierre de inscripciones debe ser una fecha futura.',
-        ], [
-            'name' => 'nombre',
-            'court_id' => 'centro deportivo',
-            'sport_id' => 'deporte',
-            'level_id' => 'nivel',
-            'format' => 'formato',
-            'gender' => 'categoría',
-            'entry_fee' => 'costo de inscripción',
-            'prizes' => 'premios',
-            'max_teams' => 'cupo de equipos',
-            'min_players_per_team' => 'mínimo de jugadores',
-            'max_players_per_team' => 'máximo de jugadores',
-            'registration_closes_at' => 'cierre de inscripciones',
-            'starts_on' => 'fecha de inicio',
-            'ends_on' => 'fecha de fin',
-            'status' => 'estado',
-            'description' => 'descripción',
-            'rules' => 'reglamento',
-            'cover' => 'portada',
-        ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function validateGame(Request $request, Tournament $tournament): array
-    {
-        $teamIds = $tournament->registrations()->pluck('team_id')->all();
-
-        return $request->validateWithBag('game', [
-            'round' => ['required', 'string', 'max:40'],
-            'round_order' => ['nullable', 'integer', 'min:1', 'max:999'],
-            'home_team_id' => ['nullable', 'integer', Rule::in($teamIds)],
-            'away_team_id' => ['nullable', 'integer', Rule::in($teamIds), 'different:home_team_id'],
-            'court_field_id' => ['nullable', 'integer', Rule::exists('court_fields', 'id')->where('court_id', $tournament->court_id)],
-            'scheduled_at' => ['nullable', 'date'],
-            'home_score' => ['nullable', 'integer', 'min:0', 'max:999', 'required_with:away_score'],
-            'away_score' => ['nullable', 'integer', 'min:0', 'max:999', 'required_with:home_score'],
-            'status' => ['nullable', Rule::in(array_keys(TournamentGame::STATUSES))],
-        ], [
-            'away_team_id.different' => 'Un equipo no puede jugar contra sí mismo.',
-        ], [
-            'round' => 'fecha / ronda',
-            'home_team_id' => 'equipo local',
-            'away_team_id' => 'equipo visitante',
-            'court_field_id' => 'cancha',
-            'scheduled_at' => 'día y hora',
-            'home_score' => 'goles/puntos del local',
-            'away_score' => 'goles/puntos del visitante',
-        ]) + ['round_order' => $request->integer('round_order') ?: 1, 'status' => $request->input('status') ?: TournamentGame::STATUS_SCHEDULED];
     }
 }
