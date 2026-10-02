@@ -13,7 +13,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'nickname', 'email', 'phone', 'preferred_position', 'gender', 'birth_date', 'avatar_path', 'password'])]
+#[Fillable(['name', 'nickname', 'email', 'phone', 'preferred_position', 'gender', 'birth_date', 'avatar_path', 'password', 'email_verified_at', 'profile_completed_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -63,6 +63,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'birth_date' => 'date',
+            'profile_completed_at' => 'datetime',
         ];
     }
 
@@ -80,5 +81,13 @@ class User extends Authenticatable
     public function favoriteSports(): BelongsToMany
     {
         return $this->belongsToMany(Sport::class, 'user_favorite_sports')->withTimestamps()->orderBy('name');
+    }
+
+    /**
+     * Google / Facebook accounts linked to the user.
+     */
+    public function socialAccounts(): HasMany
+    {
+        return $this->hasMany(SocialAccount::class);
     }
 }

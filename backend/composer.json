@@ -9,6 +9,7 @@
         "php": "^8.3",
         "laravel/framework": "^13.17",
         "laravel/sanctum": "^4.3",
+        "laravel/socialite": "^5.31",
         "laravel/tinker": "^3.0",
         "symfony/http-client": "^8.1",
         "symfony/mailgun-mailer": "^8.1"

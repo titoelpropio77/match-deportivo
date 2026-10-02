@@ -15,7 +15,7 @@ Deportes incluidos: Fútbol 5, Fútbol 7, Pádel, Baloncesto, Tenis, Voleibol, W
 | **Espacios para eventos** | Parrilleros, quinchos y salones con capacidad y normas | CRUD por centro y reservas |
 | **Alquiler de artículos** | Pelotas, raquetas, pecheras… al reservar | CRUD por centro con control de stock |
 | **Tiendas** | Catálogo con ofertas, carrito y retiro en tienda | Productos, movimientos de stock, ventas de mostrador |
-| **Usuarios y roles** | Registro, perfil de jugador, deportes favoritos | Roles `superadmin`, `admin`, `partner`, `manager` y matriz de permisos |
+| **Usuarios y roles** | Registro con email, Google o Facebook, perfil de jugador, deportes favoritos | Roles `superadmin`, `admin`, `partner`, `manager` y matriz de permisos |
 
 > El pago QR está **simulado**: la app muestra un QR ficticio y un botón "Simular pago". Falta integrar el webhook del banco.
 
@@ -71,7 +71,16 @@ docker exec backend-admin-1 php artisan db:seed
 ### 2. Variables de entorno
 
 - `backend/.env` y `admin/.env`: se crean desde su `.env.example`. En el panel, `GOOGLE_MAPS_API_KEY` habilita el mapa para ubicar los centros (sin key, lat/lng se cargan a mano). Para enviar correos con Mailgun: `MAIL_MAILER=mailgun`, `MAILGUN_DOMAIN` y `MAILGUN_SECRET`.
-- `frontend/.env`: `backend_url=http://localhost:8000`.
+- `frontend/.env`: `backend_url=http://localhost:8000` y `google_server_client_id` (ver abajo).
+
+#### Registro con Google y Facebook
+
+La app inicia sesión con el SDK nativo y el backend valida el token con Laravel Socialite (`POST /api/auth/{google|facebook}`). Una cuenta nueva pasa por "Completa tu perfil". Funciona en Android e iOS (no en web ni escritorio). Para activarlo:
+
+- **Google** (Google Cloud Console → Credenciales): crea un cliente OAuth tipo *Aplicación web* y uno *Android* (paquete `com.example.frontend` + SHA-1 de tu keystore: `cd frontend/android && ./gradlew signingReport`). En `backend/.env`: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (web) y `GOOGLE_ALLOWED_CLIENT_IDS` (el de Android). En `frontend/.env`: `google_server_client_id` = el ID web.
+- **Facebook** (developers.facebook.com → app con "Inicio de sesión con Facebook"): en `backend/.env` `FACEBOOK_CLIENT_ID` / `FACEBOOK_CLIENT_SECRET`; en `frontend/android/app/src/main/res/values/strings.xml` el App ID, el Client token y `fb<APP_ID>`. Registra el paquete y el hash de la clave en la plataforma Android de la app.
+
+Si no configuras los IDs en el backend, no se verifica a qué app pertenece el token (solo para desarrollo).
 
 No subas claves reales a los `.env.example`.
 

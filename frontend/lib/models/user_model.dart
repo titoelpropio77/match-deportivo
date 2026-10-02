@@ -13,6 +13,7 @@ class UserModel {
     this.photoUrl,
     this.createdAt,
     this.favoriteSports = const [],
+    this.profileCompleted = true,
   });
 
   final int id;
@@ -28,6 +29,9 @@ class UserModel {
 
   /// "Mis deportes favoritos" (only sent by auth and profile endpoints).
   final List<SportModel> favoriteSports;
+
+  /// False for a new Google / Facebook account until it fills in "Completa tu perfil".
+  final bool profileCompleted;
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
@@ -47,6 +51,7 @@ class UserModel {
       favoriteSports: (json['favorite_sports'] as List<dynamic>? ?? const [])
           .map((item) => SportModel.fromJson(item as Map<String, dynamic>))
           .toList(),
+      profileCompleted: json['profile_completed'] as bool? ?? true,
     );
   }
 
@@ -67,6 +72,7 @@ class UserModel {
       'favorite_sports': [
         for (final sport in favoriteSports) {'id': sport.id, 'key': sport.key, 'name': sport.name},
       ],
+      'profile_completed': profileCompleted,
     };
   }
 }

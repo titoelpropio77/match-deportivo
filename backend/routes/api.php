@@ -17,10 +17,14 @@ use App\Http\Controllers\Api\TeamController;
 use App\Http\Controllers\Api\TournamentController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\MatchController;
+use App\Models\SocialAccount;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/auth/{provider}', [AuthController::class, 'socialLogin'])
+    ->whereIn('provider', SocialAccount::PROVIDERS)
+    ->middleware('throttle:10,1');
 
 Route::get('/matches', [MatchController::class, 'index']);
 Route::get('/matches/{id}', [MatchController::class, 'show'])->whereNumber('id');
@@ -41,6 +45,7 @@ Route::get('/stores/{store}/products', [StoreController::class, 'products'])->wh
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
+    Route::post('/me/complete-profile', [AuthController::class, 'completeProfile']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/matches/mine', [MatchController::class, 'mine']);
     Route::get('/matches/organized', [MatchController::class, 'organized']);

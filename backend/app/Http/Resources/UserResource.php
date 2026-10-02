@@ -28,6 +28,8 @@ class UserResource extends JsonResource
             'photo_url' => $this->avatar_path
                 ? Storage::disk('public')->url($this->avatar_path)
                 : null,
+            // False for a new Google / Facebook account until it fills in "Completa tu perfil".
+            'profile_completed' => $this->profile_completed_at !== null,
             'created_at' => $this->created_at,
         ];
     }

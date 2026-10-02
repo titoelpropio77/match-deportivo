@@ -5,8 +5,10 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../services/social_sign_in_service.dart';
 import '../services/sport_api_service.dart';
 import 'profile/favorite_sports_picker.dart';
+import 'widgets/social_auth_buttons.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({
@@ -14,8 +16,12 @@ class RegisterScreen extends StatefulWidget {
     required this.tokenStorage,
     required this.onAuthenticated,
     this.sportApiService,
+    this.socialSignIn,
     super.key,
   });
+
+  /// Google / Facebook sign up; defaults to the native SDKs.
+  final SocialSignInService? socialSignIn;
 
   /// Lists the sports for "Mis deportes favoritos"; defaults to one on [authService]'s URL.
   final SportApiService? sportApiService;
@@ -407,6 +413,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Text('Crear cuenta'),
+                    ),
+                    const SizedBox(height: 24),
+                    SocialAuthButtons(
+                      authService: widget.authService,
+                      tokenStorage: widget.tokenStorage,
+                      onAuthenticated: widget.onAuthenticated,
+                      socialSignIn: widget.socialSignIn,
+                      enabled: !_isLoading,
                     ),
                   ],
                 ),
