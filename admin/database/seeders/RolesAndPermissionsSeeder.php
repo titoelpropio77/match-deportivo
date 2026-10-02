@@ -33,6 +33,43 @@ class RolesAndPermissionsSeeder extends Seeder
         'court_fields.update',
         'court_fields.destroy',
 
+        // Sports gear rented with the courts (balls, rackets...), managed from the venue edit screen.
+        'rental_items.store',
+        'rental_items.update',
+        'rental_items.destroy',
+
+        // Event spaces (grill areas, halls...) of a venue, managed from its edit screen.
+        'event_spaces.store',
+        'event_spaces.update',
+        'event_spaces.destroy',
+
+        // Reservations of event spaces, same actions as court reservations.
+        'event_reservations.index',
+        'event_reservations.show',
+        'event_reservations.store',
+        'event_reservations.cancel',
+        'event_reservations.payments',
+
+        // Reservations of the venues the user can see (all of them with courts.view_all).
+        'reservations.index',
+        'reservations.show',
+        // Register walk-in / phone bookings from the panel.
+        'reservations.store',
+        // Cancel a booking (with a reason shown to the player).
+        'reservations.cancel',
+        // Register payments collected at the venue and refunds.
+        'reservations.payments',
+
+        // Tournaments of the venues the user can see.
+        'tournaments.index',
+        'tournaments.store',
+        'tournaments.update',
+        'tournaments.destroy',
+        // Team registrations: cancel, register payments and refunds.
+        'tournaments.registrations',
+        // Fixture and results.
+        'tournaments.games',
+
         'users.index',
         'users.show',
         'users.store',
@@ -57,7 +94,7 @@ class RolesAndPermissionsSeeder extends Seeder
      * @var array<string, list<string>>
      */
     private const ROLE_DEFAULTS = [
-        // Platform staff: every court, read-only users.
+        // Platform staff: every court; creates users and assigns them roles (never superadmin).
         'admin' => [
             'dashboard.index',
             'courts.index',
@@ -70,8 +107,32 @@ class RolesAndPermissionsSeeder extends Seeder
             'court_fields.store',
             'court_fields.update',
             'court_fields.destroy',
+            'event_spaces.store',
+            'event_spaces.update',
+            'event_spaces.destroy',
+            'rental_items.store',
+            'rental_items.update',
+            'rental_items.destroy',
+            'event_reservations.index',
+            'event_reservations.show',
+            'event_reservations.store',
+            'event_reservations.cancel',
+            'event_reservations.payments',
+            'reservations.index',
+            'reservations.show',
+            'reservations.store',
+            'reservations.cancel',
+            'reservations.payments',
+            'tournaments.index',
+            'tournaments.store',
+            'tournaments.update',
+            'tournaments.destroy',
+            'tournaments.registrations',
+            'tournaments.games',
             'users.index',
             'users.show',
+            'users.store',
+            'users.update',
         ],
         // Court owner: only the courts assigned to them; can add managers to them.
         'partner' => [
@@ -83,6 +144,28 @@ class RolesAndPermissionsSeeder extends Seeder
             'court_fields.store',
             'court_fields.update',
             'court_fields.destroy',
+            'event_spaces.store',
+            'event_spaces.update',
+            'event_spaces.destroy',
+            'rental_items.store',
+            'rental_items.update',
+            'rental_items.destroy',
+            'event_reservations.index',
+            'event_reservations.show',
+            'event_reservations.store',
+            'event_reservations.cancel',
+            'event_reservations.payments',
+            'reservations.index',
+            'reservations.show',
+            'reservations.store',
+            'reservations.cancel',
+            'reservations.payments',
+            'tournaments.index',
+            'tournaments.store',
+            'tournaments.update',
+            'tournaments.destroy',
+            'tournaments.registrations',
+            'tournaments.games',
         ],
         // Staff assigned by an owner: only the courts they manage, cannot delete or assign managers.
         'manager' => [
@@ -92,6 +175,25 @@ class RolesAndPermissionsSeeder extends Seeder
             'courts.update',
             'court_fields.store',
             'court_fields.update',
+            'event_spaces.store',
+            'event_spaces.update',
+            'rental_items.store',
+            'rental_items.update',
+            'event_reservations.index',
+            'event_reservations.show',
+            'event_reservations.store',
+            'event_reservations.cancel',
+            'event_reservations.payments',
+            'reservations.index',
+            'reservations.show',
+            'reservations.store',
+            'reservations.cancel',
+            'reservations.payments',
+            'tournaments.index',
+            'tournaments.store',
+            'tournaments.update',
+            'tournaments.registrations',
+            'tournaments.games',
         ],
         'cliente' => [],
     ];

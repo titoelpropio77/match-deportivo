@@ -37,6 +37,86 @@
         </li>
     @endcanany
 
+    @canany(['reservations.index', 'reservations.store'])
+        <li class="nav-item {{ $menuOpen('reservations.*') }}">
+            <a href="#" class="nav-link {{ $active('reservations.*') }}">
+                <i class="nav-icon fas fa-calendar-check"></i>
+                <p>Reservas <i class="right fas fa-angle-left"></i></p>
+            </a>
+            <ul class="nav nav-treeview">
+                @can('reservations.index')
+                    <li class="nav-item">
+                        <a href="{{ route('reservations.index') }}" class="nav-link {{ $active('reservations.index', 'reservations.show') }}">
+                            <i class="far fa-circle nav-icon"></i><p>Lista de reservas</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ route('reservations.agenda') }}" class="nav-link {{ $active('reservations.agenda') }}">
+                            <i class="far fa-circle nav-icon"></i><p>Agenda del día</p>
+                        </a>
+                    </li>
+                @endcan
+                @can('reservations.store')
+                    <li class="nav-item">
+                        <a href="{{ route('reservations.create') }}" class="nav-link {{ $active('reservations.create') }}">
+                            <i class="far fa-circle nav-icon"></i><p>Registrar reserva</p>
+                        </a>
+                    </li>
+                @endcan
+            </ul>
+        </li>
+    @endcanany
+
+    @canany(['event_reservations.index', 'event_reservations.store'])
+        <li class="nav-item {{ $menuOpen('event-reservations.*') }}">
+            <a href="#" class="nav-link {{ $active('event-reservations.*') }}">
+                <i class="nav-icon fas fa-glass-cheers"></i>
+                <p>Eventos <i class="right fas fa-angle-left"></i></p>
+            </a>
+            <ul class="nav nav-treeview">
+                @can('event_reservations.index')
+                    <li class="nav-item">
+                        <a href="{{ route('event-reservations.index') }}" class="nav-link {{ $active('event-reservations.index', 'event-reservations.show') }}">
+                            <i class="far fa-circle nav-icon"></i><p>Reservas de espacios</p>
+                        </a>
+                    </li>
+                @endcan
+                @can('event_reservations.store')
+                    <li class="nav-item">
+                        <a href="{{ route('event-reservations.create') }}" class="nav-link {{ $active('event-reservations.create') }}">
+                            <i class="far fa-circle nav-icon"></i><p>Registrar reserva de evento</p>
+                        </a>
+                    </li>
+                @endcan
+            </ul>
+        </li>
+    @endcanany
+
+    @canany(['tournaments.index', 'tournaments.store'])
+        <li class="nav-item {{ $menuOpen('tournaments.*') }}">
+            <a href="#" class="nav-link {{ $active('tournaments.*') }}">
+                <i class="nav-icon fas fa-trophy"></i>
+                <p>Torneos <i class="right fas fa-angle-left"></i></p>
+            </a>
+            <ul class="nav nav-treeview">
+                @can('tournaments.index')
+                    <li class="nav-item">
+                        <a href="{{ route('tournaments.index') }}" class="nav-link {{ $active('tournaments.index', 'tournaments.show', 'tournaments.edit') }}">
+                            <i class="far fa-circle nav-icon"></i><p>Lista de torneos</p>
+                        </a>
+                    </li>
+                @endcan
+                @can('tournaments.store')
+                    <li class="nav-item">
+                        <a href="{{ route('tournaments.create') }}" class="nav-link {{ $active('tournaments.create') }}">
+                            <i class="far fa-circle nav-icon"></i><p>Crear torneo</p>
+                        </a>
+                    </li>
+                @endcan
+            </ul>
+        </li>
+    @endcanany
+
     @canany(['users.index', 'users.store'])
         <li class="nav-item {{ $menuOpen('users.*') }}">
             <a href="#" class="nav-link {{ $active('users.*') }}">

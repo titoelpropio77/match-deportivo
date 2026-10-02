@@ -10,11 +10,19 @@ class ReserveCourtsScreen extends StatefulWidget {
   const ReserveCourtsScreen({
     required this.courtApiService,
     required this.sportApiService,
+    this.returnAfterBooking = false,
     super.key,
   });
 
+  /// Route name used to come back here (and close this screen) once a booking is paid.
+  static const routeName = 'reserve-courts';
+
   final CourtApiService courtApiService;
   final SportApiService sportApiService;
+
+  /// Opened from another flow (e.g. creating a match): after paying, pop this screen with `true`
+  /// instead of going back to the home.
+  final bool returnAfterBooking;
 
   @override
   State<ReserveCourtsScreen> createState() => _ReserveCourtsScreenState();
@@ -144,74 +152,196 @@ class _ReserveCourtsScreenState extends State<ReserveCourtsScreen> {
       return const Center(child: Text('No hay canchas libres para esa fecha.'));
     }
 
+    final venues = _VenueGroup.fromFields(_fields);
     return ListView.separated(
       padding: const EdgeInsets.all(16),
-      itemCount: _fields.length,
+      itemCount: venues.length,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final field = _fields[index];
-        final photo = field.venue.photos.isEmpty ? null : field.venue.photos.first;
-        return Card(
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => CourtFieldDetailScreen(
-                    field: field,
-                    initialDate: _date,
-                    courtApiService: widget.courtApiService,
-                  ),
-                ),
-              );
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (photo != null)
-                  Image.network(
-                    photo,
-                    height: 140,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const SizedBox(
-                      height: 140,
-                      child: ColoredBox(
-                        color: Colors.black12,
-                        child: Center(child: Icon(Icons.image_not_supported_outlined)),
-                      ),
-                    ),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(field.venue.name, style: Theme.of(context).textTheme.titleMedium),
-                      Text(field.name),
-                      const SizedBox(height: 4),
-                      Text(field.venue.address, style: Theme.of(context).textTheme.bodySmall),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        children: [
-                          for (final sport in field.sports)
-                            Chip(
-                              label: Text(sport.name),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text('${formatBs(field.pricePerHour)} por hora'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+        final venue = venues[index];
+        return _VenueCard(
+          venue: venue,
+          highlightedSportId: _sportId,
+          onTap: () => _openVenue(venue),
         );
       },
+    );
+  }
+
+  void _openVenue(_VenueGroup venue) {
+    // Open on a court that offers the filtered sport, with that sport preselected.
+    final sportId = _sportId;
+    final field = sportId == null
+        ? venue.fields.first
+        : venue.fields.firstWhere(
+            (field) => field.sports.any((sport) => sport.id == sportId),
+            orElse: () => venue.fields.first,
+          );
+    final sport = sportId == null
+        ? null
+        : field.sports.where((sport) => sport.id == sportId).firstOrNull;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CourtFieldDetailScreen(
+          field: field,
+          initialSport: sport,
+          initialDate: _date,
+          courtApiService: widget.courtApiService,
+          returnAfterBooking: widget.returnAfterBooking,
+        ),
+      ),
+    );
+  }
+}
+
+/// The bookable courts of one sports center that matched the filters.
+class _VenueGroup {
+  _VenueGroup(this.venue, this.fields);
+
+  final CourtVenueModel venue;
+  final List<CourtFieldModel> fields;
+
+  /// Every sport offered by any of its courts, in first-seen order.
+  List<SportModel> get sports {
+    final byId = <int, SportModel>{};
+    for (final field in fields) {
+      for (final sport in field.sports) {
+        byId.putIfAbsent(sport.id, () => sport);
+      }
+    }
+    return byId.values.toList();
+  }
+
+  double get minPrice => fields.map((field) => field.pricePerHour).reduce((a, b) => a < b ? a : b);
+  double get maxPrice => fields.map((field) => field.pricePerHour).reduce((a, b) => a > b ? a : b);
+
+  /// Keeps the API order (centers sorted by name).
+  static List<_VenueGroup> fromFields(List<CourtFieldModel> fields) {
+    final groups = <int, _VenueGroup>{};
+    for (final field in fields) {
+      groups.putIfAbsent(field.venue.id, () => _VenueGroup(field.venue, [])).fields.add(field);
+    }
+    return groups.values.toList();
+  }
+}
+
+class _VenueCard extends StatelessWidget {
+  const _VenueCard({required this.venue, required this.highlightedSportId, required this.onTap});
+
+  final _VenueGroup venue;
+  final int? highlightedSportId;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final photo = venue.venue.photos.isEmpty ? null : venue.venue.photos.first;
+    final count = venue.fields.length;
+    final price = venue.minPrice == venue.maxPrice
+        ? '${formatBs(venue.minPrice)} por hora'
+        : 'Desde ${formatBs(venue.minPrice)} por hora';
+    final placeholder = SizedBox(
+      height: 140,
+      child: ColoredBox(
+        color: colors.surfaceContainerHighest,
+        child: Center(child: Icon(Icons.stadium_outlined, size: 40, color: colors.onSurfaceVariant)),
+      ),
+    );
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (photo == null)
+              placeholder
+            else
+              Image.network(
+                photo,
+                height: 140,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => placeholder,
+              ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(venue.venue.name, style: textTheme.titleMedium),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Icon(Icons.place_outlined, size: 14, color: colors.onSurfaceVariant),
+                      const SizedBox(width: 4),
+                      Expanded(child: Text(venue.venue.address, style: textTheme.bodySmall)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final sport in venue.sports)
+                        Chip(
+                          label: Text(sport.name),
+                          visualDensity: VisualDensity.compact,
+                          backgroundColor: sport.id == highlightedSportId ? colors.secondaryContainer : null,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.grid_view_rounded, size: 16, color: colors.onSurfaceVariant),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          '$count ${count == 1 ? 'cancha disponible' : 'canchas disponibles'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          price,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
+                          style: textTheme.titleSmall,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if ((venue.venue.eventSpacesCount ?? 0) > 0) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(Icons.celebration_outlined, size: 14, color: colors.tertiary),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'También alquila espacios para eventos',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall?.copyWith(color: colors.tertiary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

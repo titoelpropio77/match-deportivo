@@ -14,9 +14,15 @@
             <div class="card card-primary card-outline">
                 <div class="card-header">
                     <h3 class="card-title">{{ $court->name }}</h3>
-                    @can('courts.update')
-                        <div class="card-tools"><a href="{{ route('courts.edit', $court) }}" class="btn btn-sm btn-primary"><i class="fas fa-edit"></i> Editar</a></div>
-                    @endcan
+                    <div class="card-tools">
+                        @can('reservations.index')
+                            <a href="{{ route('reservations.agenda', ['court_id' => $court->id]) }}" class="btn btn-sm btn-default"><i class="far fa-calendar-alt"></i> Agenda</a>
+                            <a href="{{ route('reservations.index', ['court_id' => $court->id]) }}" class="btn btn-sm btn-default"><i class="fas fa-calendar-check"></i> Reservas</a>
+                        @endcan
+                        @can('courts.update')
+                            <a href="{{ route('courts.edit', $court) }}" class="btn btn-sm btn-primary"><i class="fas fa-edit"></i> Editar</a>
+                        @endcan
+                    </div>
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
@@ -68,6 +74,25 @@
                 <div class="card-header"><h3 class="card-title">Canchas físicas</h3></div>
                 <div class="card-body p-0">
                     @include('courts.partials.fields-table', ['editable' => false])
+                </div>
+            </div>
+            <div class="card card-info card-outline">
+                <div class="card-header"><h3 class="card-title"><i class="fas fa-volleyball-ball mr-1"></i> Artículos en alquiler</h3></div>
+                <div class="card-body p-0">
+                    @include('courts.partials.rental-items-table', ['editable' => false])
+                </div>
+            </div>
+            <div class="card card-warning card-outline">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-glass-cheers mr-1"></i> Espacios para eventos</h3>
+                    @can('event_reservations.index')
+                        <div class="card-tools">
+                            <a href="{{ route('event-reservations.index', ['court_id' => $court->id]) }}" class="btn btn-sm btn-default"><i class="fas fa-calendar-check"></i> Reservas de eventos</a>
+                        </div>
+                    @endcan
+                </div>
+                <div class="card-body p-0">
+                    @include('courts.partials.event-spaces-table', ['editable' => false])
                 </div>
             </div>
             @include('courts.partials.managers', ['editable' => false])

@@ -33,6 +33,8 @@ class CourtFieldResource extends JsonResource
                 'photos' => $this->court->relationLoaded('photos')
                     ? $this->court->photos->pluck('public_url')
                     : [],
+                // Only set by the court list: the venue also rents spaces for events.
+                'event_spaces_count' => $this->court->event_spaces_count,
             ]),
         ];
     }

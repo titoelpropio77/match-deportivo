@@ -3,30 +3,28 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../models/court_field_model.dart';
-import '../../models/sport_model.dart';
+import '../../models/rental_item_model.dart';
 import '../../services/court_api_service.dart';
+import '../widgets/fake_qr.dart';
 import 'reserve_courts_screen.dart';
 
-/// Reservation summary and QR payment. The QR is simulated: the reservation is
-/// held as `pending_payment` and "Simular pago" confirms it on the backend.
+/// Booking summary and QR payment for every picked range at once. The QR is simulated: the
+/// ranges are held as `pending_payment` and "Simular pago" confirms the whole booking.
+/// Pops `true` once paid.
 class CourtPaymentScreen extends StatefulWidget {
   const CourtPaymentScreen({
-    required this.field,
-    required this.sport,
-    required this.date,
-    required this.startTime,
-    required this.endTime,
-    required this.hours,
+    required this.venue,
+    required this.items,
     required this.courtApiService,
+    this.returnAfterBooking = false,
     super.key,
   });
 
-  final CourtFieldModel field;
-  final SportModel sport;
-  final DateTime date;
-  final String startTime;
-  final String endTime;
-  final int hours;
+  /// See [ReserveCourtsScreen.returnAfterBooking].
+  final bool returnAfterBooking;
+
+  final CourtVenueModel venue;
+  final List<BookingItem> items;
   final CourtApiService courtApiService;
 
   @override
@@ -34,14 +32,49 @@ class CourtPaymentScreen extends StatefulWidget {
 }
 
 class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
-  CourtReservationModel? _reservation;
+  CourtBookingModel? _booking;
   bool _busy = false;
   Timer? _timer;
   Duration _remaining = Duration.zero;
 
-  double get _amount => widget.field.pricePerHour * widget.hours;
+  /// Gear the sports center rents; offered for the ranges of the same sport.
+  List<RentalItemModel> _rentalItems = const [];
 
-  bool get _expired => _reservation?.paymentExpiresAt != null && _remaining <= Duration.zero;
+  /// Picked gear per range: range index → rental item id → quantity.
+  final Map<int, Map<int, int>> _quantities = {};
+
+  /// The picked ranges with their rented gear.
+  List<BookingItem> get _items => [
+        for (var index = 0; index < widget.items.length; index++)
+          widget.items[index].withRentals([
+            for (final rental in _rentalItems)
+              if ((_quantities[index]?[rental.id] ?? 0) > 0)
+                RentalSelection(item: rental, quantity: _quantities[index]![rental.id]!),
+          ]),
+      ];
+
+  double get _amount => _items.fold(0, (total, item) => total + item.amount);
+  int get _hours => widget.items.fold(0, (total, item) => total + item.hours);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRentalItems();
+  }
+
+  /// Optional extra: without gear (or on errors) the section just does not show.
+  Future<void> _loadRentalItems() async {
+    try {
+      final items = await widget.courtApiService.rentalItems(widget.venue.id);
+      if (mounted) setState(() => _rentalItems = items);
+    } catch (_) {}
+  }
+
+  void _setQuantity(int rangeIndex, RentalItemModel item, int quantity) {
+    setState(() => (_quantities[rangeIndex] ??= {})[item.id] = quantity);
+  }
+
+  bool get _expired => _booking?.paymentExpiresAt != null && _remaining <= Duration.zero;
 
   @override
   void dispose() {
@@ -52,15 +85,9 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
   Future<void> _generateQr() async {
     setState(() => _busy = true);
     try {
-      final reservation = await widget.courtApiService.reserve(
-        fieldId: widget.field.id,
-        sportId: widget.sport.id,
-        date: widget.date,
-        startTime: widget.startTime,
-        hours: widget.hours,
-      );
+      final booking = await widget.courtApiService.createBooking(_items);
       if (!mounted) return;
-      setState(() => _reservation = reservation);
+      setState(() => _booking = booking);
       _startCountdown();
     } catch (error) {
       _showError(error, 'No pudimos registrar la reserva.');
@@ -70,7 +97,7 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
   }
 
   void _startCountdown() {
-    final expiresAt = _reservation?.paymentExpiresAt;
+    final expiresAt = _booking?.paymentExpiresAt;
     if (expiresAt == null) return;
     void tick() {
       final remaining = expiresAt.difference(DateTime.now());
@@ -83,23 +110,38 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
   }
 
   Future<void> _simulatePayment() async {
-    final reservation = _reservation;
-    if (reservation == null) return;
+    final booking = _booking;
+    if (booking == null) return;
     setState(() => _busy = true);
     try {
-      final paid = await widget.courtApiService.pay(reservation.id);
+      final paid = await widget.courtApiService.payBooking(booking.code);
       if (!mounted) return;
       _timer?.cancel();
-      await Navigator.of(context).pushReplacement(
+      final goHome = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
           builder: (_) => CourtReservationSuccessScreen(
-            reservation: paid,
-            venueName: widget.field.venue.name,
-            fieldName: widget.field.name,
-            sportName: widget.sport.name,
+            booking: paid,
+            venueName: widget.venue.name,
+            items: _items,
+            doneLabel: widget.returnAfterBooking ? 'Continuar' : 'Volver al inicio',
           ),
         ),
       );
+      if (!mounted) return;
+      final navigator = Navigator.of(context);
+      if (goHome == true && widget.returnAfterBooking) {
+        // Back to the screen that opened the booking flow, telling it a booking was made.
+        navigator.popUntil((route) => route.settings.name == ReserveCourtsScreen.routeName || route.isFirst);
+        if (navigator.canPop()) navigator.pop(true);
+        return;
+      }
+      // The success screen only closes itself: popping several routes from there left this screen
+      // popping again while closing, which removed the home route too (blank screen).
+      if (goHome == true) {
+        navigator.popUntil((route) => route.isFirst);
+      } else {
+        navigator.pop(true);
+      }
     } catch (error) {
       _showError(error, 'No pudimos confirmar el pago.');
     } finally {
@@ -107,10 +149,10 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
     }
   }
 
-  /// Leaving with an unpaid reservation releases the hour.
+  /// Leaving with an unpaid booking releases its hours.
   Future<void> _leave() async {
-    final reservation = _reservation;
-    if (reservation == null || _expired) {
+    final booking = _booking;
+    if (booking == null || _expired) {
       Navigator.of(context).pop();
       return;
     }
@@ -118,7 +160,7 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('¿Cancelar la reserva?'),
-        content: const Text('Todavía no pagaste. Si sales, el horario quedará libre para otros.'),
+        content: const Text('Todavía no pagaste. Si sales, los horarios quedarán libres para otros.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -133,7 +175,7 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
     );
     if (confirmed != true || !mounted) return;
     try {
-      await widget.courtApiService.cancelReservation(reservation.id);
+      await widget.courtApiService.cancelBooking(booking.code);
     } catch (_) {
       // The hold expires on its own after the payment window.
     }
@@ -148,10 +190,10 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final field = widget.field;
-    final reservation = _reservation;
+    final booking = _booking;
+    final textTheme = Theme.of(context).textTheme;
     return PopScope(
-      canPop: reservation == null || _expired,
+      canPop: booking == null || _expired,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _leave();
       },
@@ -166,23 +208,26 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Resumen', style: Theme.of(context).textTheme.titleMedium),
+                    Text(widget.venue.name, style: textTheme.titleMedium),
+                    Text(widget.venue.address, style: textTheme.bodySmall),
                     const SizedBox(height: 8),
-                    _Row(label: 'Centro deportivo', value: field.venue.name),
-                    _Row(label: 'Cancha', value: field.name),
-                    _Row(label: 'Deporte', value: widget.sport.name),
-                    _Row(label: 'Fecha', value: formatReservationDate(widget.date)),
-                    _Row(label: 'Horario', value: '${widget.startTime} – ${widget.endTime}'),
-                    _Row(label: 'Horas', value: '${widget.hours}'),
-                    _Row(label: 'Precio por hora', value: formatBs(field.pricePerHour)),
+                    for (final item in _items) _BookingItemRow(item: item),
                     const Divider(),
+                    _Row(label: 'Horas', value: '$_hours'),
                     _Row(label: 'Total', value: formatBs(_amount), emphasize: true),
                   ],
                 ),
               ),
             ),
+            if (booking == null && _rentalItems.isNotEmpty)
+              _RentalsSection(
+                ranges: widget.items,
+                rentalItems: _rentalItems,
+                quantities: _quantities,
+                onChanged: _setQuantity,
+              ),
             const SizedBox(height: 16),
-            if (reservation == null)
+            if (booking == null)
               FilledButton.icon(
                 onPressed: _busy ? null : _generateQr,
                 icon: _busy ? const _ButtonSpinner() : const Icon(Icons.qr_code_2),
@@ -190,7 +235,8 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
               )
             else
               _QrPanel(
-                reservation: reservation,
+                reference: booking.code,
+                amount: booking.amount,
                 remaining: _remaining,
                 expired: _expired,
                 busy: _busy,
@@ -204,9 +250,191 @@ class _CourtPaymentScreenState extends State<CourtPaymentScreen> {
   }
 }
 
+/// "Cancha 1 · Fútbol 5 / jueves 2 de octubre · 09:00–11:00 (2 h) · Bs 100".
+class _BookingItemRow extends StatelessWidget {
+  const _BookingItemRow({required this.item});
+
+  final BookingItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${item.field.name} · ${item.sport.name}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${formatReservationDate(item.date)} · ${item.startTime}–${item.endTime} '
+                  '(${item.hours} h)',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          Text(formatBs(item.courtAmount), style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+    if (item.rentals.isEmpty) return row;
+
+    final small = Theme.of(context).textTheme.bodySmall;
+    return Column(
+      children: [
+        row,
+        for (final rental in item.rentals)
+          Padding(
+            padding: const EdgeInsets.only(left: 12, bottom: 4),
+            child: Row(
+              children: [
+                Icon(Icons.add, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    '${rental.quantity} × ${rental.item.name}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: small,
+                  ),
+                ),
+                Text(formatBs(rental.item.amountFor(rental.quantity, item.hours)), style: small),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// "¿Necesitas algo más?": gear of the center for the sport of each picked range, with quantities.
+class _RentalsSection extends StatelessWidget {
+  const _RentalsSection({
+    required this.ranges,
+    required this.rentalItems,
+    required this.quantities,
+    required this.onChanged,
+  });
+
+  final List<BookingItem> ranges;
+  final List<RentalItemModel> rentalItems;
+  final Map<int, Map<int, int>> quantities;
+  final void Function(int rangeIndex, RentalItemModel item, int quantity) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colors = Theme.of(context).colorScheme;
+    final offers = [
+      for (var index = 0; index < ranges.length; index++)
+        (index, rentalItems.where((item) => item.sportId == ranges[index].sport.id).toList()),
+    ].where((offer) => offer.$2.isNotEmpty).toList();
+    if (offers.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('¿Necesitas algo más?', style: textTheme.titleMedium),
+              Text(
+                'El centro te alquila el equipo; se suma al total de la reserva.',
+                style: textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
+              ),
+              for (final (index, items) in offers) ...[
+                if (ranges.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text(
+                      '${ranges[index].field.name} · ${ranges[index].sport.name} · '
+                      '${ranges[index].startTime}–${ranges[index].endTime}',
+                      style: textTheme.labelLarge,
+                    ),
+                  ),
+                for (final item in items)
+                  _RentalRow(
+                    item: item,
+                    hours: ranges[index].hours,
+                    quantity: quantities[index]?[item.id] ?? 0,
+                    onChanged: (quantity) => onChanged(index, item, quantity),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RentalRow extends StatelessWidget {
+  const _RentalRow({required this.item, required this.hours, required this.quantity, required this.onChanged});
+
+  static const _maxPerRange = 20;
+
+  final RentalItemModel item;
+  final int hours;
+  final int quantity;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final max = item.stock == null || item.stock! > _maxPerRange ? _maxPerRange : item.stock!;
+    final price = item.isFlat ? '${formatBs(item.price)} por reserva' : '${formatBs(item.price)} / hora';
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: textTheme.bodyMedium),
+                Text(
+                  quantity > 0 ? '$price · ${formatBs(item.amountFor(quantity, hours))}' : price,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Quitar ${item.name}',
+            visualDensity: VisualDensity.compact,
+            onPressed: quantity > 0 ? () => onChanged(quantity - 1) : null,
+            icon: const Icon(Icons.remove_circle_outline),
+          ),
+          SizedBox(
+            width: 24,
+            child: Text('$quantity', textAlign: TextAlign.center, style: textTheme.titleSmall),
+          ),
+          IconButton(
+            tooltip: 'Agregar ${item.name}',
+            visualDensity: VisualDensity.compact,
+            onPressed: quantity < max ? () => onChanged(quantity + 1) : null,
+            icon: const Icon(Icons.add_circle_outline),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _QrPanel extends StatelessWidget {
   const _QrPanel({
-    required this.reservation,
+    required this.reference,
+    required this.amount,
     required this.remaining,
     required this.expired,
     required this.busy,
@@ -214,7 +442,8 @@ class _QrPanel extends StatelessWidget {
     required this.onCancel,
   });
 
-  final CourtReservationModel reservation;
+  final String reference;
+  final double amount;
   final Duration remaining;
   final bool expired;
   final bool busy;
@@ -226,7 +455,6 @@ class _QrPanel extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final minutes = remaining.inMinutes.toString().padLeft(2, '0');
     final seconds = (remaining.inSeconds % 60).toString().padLeft(2, '0');
-    final reference = reservation.paymentReference ?? 'MD-${reservation.id}';
 
     return Card(
       child: Padding(
@@ -235,7 +463,7 @@ class _QrPanel extends StatelessWidget {
           children: [
             Text('Escanea el QR para pagar', style: textTheme.titleMedium),
             const SizedBox(height: 4),
-            Text(formatBs(reservation.amount), style: textTheme.headlineMedium),
+            Text(formatBs(amount), style: textTheme.headlineMedium),
             const SizedBox(height: 12),
             Opacity(
               opacity: expired ? 0.2 : 1,
@@ -244,7 +472,7 @@ class _QrPanel extends StatelessWidget {
                 color: Colors.white,
                 child: SizedBox.square(
                   dimension: 200,
-                  child: CustomPaint(painter: _FakeQrPainter('$reference|${reservation.amount}')),
+                  child: CustomPaint(painter: FakeQrPainter('$reference|$amount')),
                 ),
               ),
             ),
@@ -253,8 +481,8 @@ class _QrPanel extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               expired
-                  ? 'El QR expiró y el horario fue liberado.'
-                  : 'El horario queda apartado por $minutes:$seconds',
+                  ? 'El QR expiró y los horarios fueron liberados.'
+                  : 'Tus horarios quedan apartados por $minutes:$seconds',
               style: textTheme.bodyMedium?.copyWith(
                 color: expired ? Theme.of(context).colorScheme.error : null,
               ),
@@ -292,22 +520,22 @@ class _QrPanel extends StatelessWidget {
 
 class CourtReservationSuccessScreen extends StatelessWidget {
   const CourtReservationSuccessScreen({
-    required this.reservation,
+    required this.booking,
     required this.venueName,
-    required this.fieldName,
-    required this.sportName,
+    required this.items,
+    this.doneLabel = 'Volver al inicio',
     super.key,
   });
 
-  final CourtReservationModel reservation;
+  final String doneLabel;
+
+  final CourtBookingModel booking;
   final String venueName;
-  final String fieldName;
-  final String sportName;
+  final List<BookingItem> items;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final date = DateTime.tryParse(reservation.date);
     return Scaffold(
       appBar: AppBar(title: const Text('Reserva confirmada'), automaticallyImplyLeading: false),
       body: ListView(
@@ -315,27 +543,22 @@ class CourtReservationSuccessScreen extends StatelessWidget {
         children: [
           Icon(Icons.check_circle, size: 72, color: Colors.green.shade600),
           const SizedBox(height: 12),
-          Text('¡Cancha reservada!', textAlign: TextAlign.center, style: textTheme.headlineSmall),
-          const SizedBox(height: 4),
           Text(
-            'Pago recibido · ${reservation.paymentReference ?? ''}',
+            items.length == 1 ? '¡Cancha reservada!' : '¡Canchas reservadas!',
             textAlign: TextAlign.center,
+            style: textTheme.headlineSmall,
           ),
+          const SizedBox(height: 4),
+          Text('Pago recibido · ${booking.code}', textAlign: TextAlign.center),
           const SizedBox(height: 24),
-          _Row(label: 'Centro deportivo', value: venueName),
-          _Row(label: 'Cancha', value: fieldName),
-          _Row(label: 'Deporte', value: sportName),
-          _Row(
-            label: 'Fecha',
-            value: date == null ? reservation.date : formatReservationDate(date),
-          ),
-          _Row(label: 'Horario', value: '${reservation.startTime} – ${reservation.endTime}'),
+          Text(venueName, style: textTheme.titleMedium),
+          for (final item in items) _BookingItemRow(item: item),
           const Divider(),
-          _Row(label: 'Total pagado', value: formatBs(reservation.amount), emphasize: true),
+          _Row(label: 'Total pagado', value: formatBs(booking.amount), emphasize: true),
           const SizedBox(height: 24),
           FilledButton(
-            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-            child: const Text('Volver al inicio'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(doneLabel),
           ),
         ],
       ),
@@ -388,50 +611,6 @@ class _ButtonSpinner extends StatelessWidget {
   }
 }
 
-/// Draws a QR-looking grid derived from [data]. Placeholder until the bank QR is integrated.
-class _FakeQrPainter extends CustomPainter {
-  _FakeQrPainter(this.data);
-
-  final String data;
-
-  static const _cells = 25;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cell = size.width / _cells;
-    final paint = Paint()..color = Colors.black;
-    var seed = data.codeUnits.fold<int>(17, (hash, unit) => (hash * 31 + unit) & 0x7fffffff);
-
-    bool inFinder(int x, int y) {
-      bool near(int ox, int oy) => x >= ox && x < ox + 8 && y >= oy && y < oy + 8;
-      return near(0, 0) || near(_cells - 8, 0) || near(0, _cells - 8);
-    }
-
-    for (var y = 0; y < _cells; y++) {
-      for (var x = 0; x < _cells; x++) {
-        if (inFinder(x, y)) continue;
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        if (seed % 2 == 0) {
-          canvas.drawRect(Rect.fromLTWH(x * cell, y * cell, cell, cell), paint);
-        }
-      }
-    }
-
-    void finder(int ox, int oy) {
-      final outer = Rect.fromLTWH(ox * cell, oy * cell, cell * 7, cell * 7);
-      canvas.drawRect(outer, paint);
-      canvas.drawRect(outer.deflate(cell), Paint()..color = Colors.white);
-      canvas.drawRect(outer.deflate(cell * 2), paint);
-    }
-
-    finder(0, 0);
-    finder(_cells - 7, 0);
-    finder(0, _cells - 7);
-  }
-
-  @override
-  bool shouldRepaint(_FakeQrPainter oldDelegate) => oldDelegate.data != data;
-}
 
 String formatReservationDate(DateTime date) {
   const days = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];

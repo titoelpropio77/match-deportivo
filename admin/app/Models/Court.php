@@ -83,4 +83,20 @@ class Court extends Model
     {
         return $this->hasMany(MatchModel::class, 'court_id');
     }
+
+    /**
+     * Spaces for gatherings (grill areas, halls...) rented by the hour.
+     */
+    public function eventSpaces(): HasMany
+    {
+        return $this->hasMany(EventSpace::class)->chaperone()->orderBy('name');
+    }
+
+    /**
+     * Sports gear rented with the courts (balls, rackets...).
+     */
+    public function rentalItems(): HasMany
+    {
+        return $this->hasMany(RentalItem::class)->orderBy('name');
+    }
 }

@@ -106,4 +106,20 @@ class Court extends Model
     {
         return $this->hasMany(CourtField::class);
     }
+
+    /**
+     * Spaces for gatherings (grill areas, halls...) rented by the hour.
+     */
+    public function eventSpaces(): HasMany
+    {
+        return $this->hasMany(EventSpace::class);
+    }
+
+    /**
+     * Sports gear rented with the courts (balls, rackets...).
+     */
+    public function rentalItems(): HasMany
+    {
+        return $this->hasMany(RentalItem::class);
+    }
 }

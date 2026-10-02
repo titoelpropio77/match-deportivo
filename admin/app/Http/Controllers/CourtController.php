@@ -94,7 +94,7 @@ class CourtController extends Controller
     {
         Gate::authorize('manage', $court);
 
-        $court->load(['owner', 'city', 'sports', 'photos', 'managers', 'fields.sports'])->loadCount('matches');
+        $court->load(['owner', 'city', 'sports', 'photos', 'managers', 'fields.sports', 'eventSpaces', 'rentalItems.sport'])->loadCount('matches');
 
         return view('courts.show', ['court' => $court]);
     }
@@ -103,7 +103,7 @@ class CourtController extends Controller
     {
         Gate::authorize('manage', $court);
 
-        $court->load(['owner', 'sports', 'photos', 'managers', 'fields.sports']);
+        $court->load(['owner', 'sports', 'photos', 'managers', 'fields.sports', 'eventSpaces', 'rentalItems.sport']);
 
         return view('courts.edit', [
             'court' => $court,
