@@ -177,6 +177,31 @@
         </li>
     @endcanany
 
+    @canany(['banners.index', 'banners.store'])
+        <li class="nav-item {{ $menuOpen('banners.*') }}">
+            <a href="#" class="nav-link {{ $active('banners.*') }}">
+                <i class="nav-icon fas fa-images"></i>
+                <p>Banners de la app <i class="right fas fa-angle-left"></i></p>
+            </a>
+            <ul class="nav nav-treeview">
+                @can('banners.index')
+                    <li class="nav-item">
+                        <a href="{{ route('banners.index') }}" class="nav-link {{ $active('banners.index', 'banners.edit') }}">
+                            <i class="far fa-circle nav-icon"></i><p>Lista de banners</p>
+                        </a>
+                    </li>
+                @endcan
+                @can('banners.store')
+                    <li class="nav-item">
+                        <a href="{{ route('banners.create') }}" class="nav-link {{ $active('banners.create') }}">
+                            <i class="far fa-circle nav-icon"></i><p>Crear banner</p>
+                        </a>
+                    </li>
+                @endcan
+            </ul>
+        </li>
+    @endcanany
+
     @canany(['users.index', 'users.store'])
         <li class="nav-item {{ $menuOpen('users.*') }}">
             <a href="#" class="nav-link {{ $active('users.*') }}">

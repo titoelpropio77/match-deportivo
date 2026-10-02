@@ -16,6 +16,7 @@ class UserSeeder extends Seeder
         $positions = ['Rematador', 'Colocador', 'Servidor', 'Central', 'Líbero'];
 
         $users = [
+            ['name' => 'modesto test', 'nickname' => 'Modesto', 'email' => 'modesto.test@example.com', 'phone' => '70011122', 'gender' => 'male'],
             ['name' => 'Carlos Mamani', 'nickname' => 'Charly', 'email' => 'carlos.mamani@example.com', 'phone' => '70011122', 'gender' => 'male'],
             ['name' => 'Ana Rojas', 'nickname' => 'Anita', 'email' => 'ana.rojas@example.com', 'phone' => '70022233', 'gender' => 'female'],
             ['name' => 'Luis Fernandez', 'nickname' => 'Lucho', 'email' => 'luis.fernandez@example.com', 'phone' => '70033344', 'gender' => 'male'],

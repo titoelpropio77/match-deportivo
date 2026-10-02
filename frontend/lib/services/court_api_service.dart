@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/court_field_model.dart';
 import '../models/court_model.dart';
+import '../models/featured_court_model.dart';
 import '../models/rental_item_model.dart';
 
 class CourtApiException implements Exception {
@@ -60,6 +61,38 @@ class CourtApiService {
 
     return data
         .map((item) => CourtModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Sports centers for the home: best rated, then new ones; any center when none qualifies.
+  Future<List<FeaturedCourtModel>> featured({int? cityId, int limit = 10}) async {
+    final response = await _client.get(
+      Uri.parse('$_baseUrl/api/courts/featured').replace(
+        queryParameters: {
+          'limit': limit.toString(),
+          if (cityId != null) 'city_id': cityId.toString(),
+        },
+      ),
+      headers: _headers(),
+    );
+    final decoded = response.body.isEmpty
+        ? <String, dynamic>{}
+        : jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw CourtApiException(
+        decoded['message'] as String? ?? 'The API request failed',
+        response.statusCode,
+      );
+    }
+
+    final data = decoded['data'];
+    if (data is! List) {
+      throw const FormatException('The featured courts response has an invalid format');
+    }
+
+    return data
+        .map((item) => FeaturedCourtModel.fromJson(item as Map<String, dynamic>))
         .toList();
   }
 

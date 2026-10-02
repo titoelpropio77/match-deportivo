@@ -59,6 +59,7 @@ Sin key, el formulario muestra un aviso y deja escribir latitud/longitud a mano.
   - *Agenda del día*: canchas × horas de un centro, con colores por estado; un clic en una hora libre abre el registro.
   - *Registrar reserva*: reservas por teléfono o presenciales (cliente por nombre/teléfono o su cuenta de la app por email), "paga en el local" o ya pagada. Valida choques de horario.
 - **Torneos**: crear/editar torneos de los centros visibles (costo por equipo, cupos, jugadores por equipo, fechas, premios, reglamento, portada), cambiar su estado (borrador → inscripciones abiertas → cerradas → en curso → finalizado / cancelado), gestionar las inscripciones de equipos (pago en el local, anular con motivo, reembolso), armar el fixture (manual o "todos contra todos" automático), cargar resultados y ver la tabla de posiciones.
+- **Banners de la app**: carrusel de la pantalla de inicio. Título, subtítulo, botón, imagen o color de fondo, orden y ventana de publicación. Cada banner lleva a una sección de la app (reservar cancha, torneos, equipos, tiendas, espacios para eventos), a un torneo o centro deportivo concreto, o a una URL externa. La app oculta sola los que apuntan a un torneo no publicado o a un registro eliminado. Permisos `banners.*`.
 - **Usuarios**: CRUD y asignación de roles.
 - **Configuración → Roles y permisos**: matriz permiso × rol con toggles AJAX y CRUD de permisos y roles.
 

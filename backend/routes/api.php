@@ -1,9 +1,12 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BannerController;
 use App\Http\Controllers\Api\CityController;
 use App\Http\Controllers\Api\CourtBookingController;
 use App\Http\Controllers\Api\CourtController;
+use App\Http\Controllers\Api\FeaturedCourtController;
+use App\Http\Controllers\Api\RankingController;
 use App\Http\Controllers\Api\CourtFieldController;
 use App\Http\Controllers\Api\EventSpaceController;
 use App\Http\Controllers\Api\EventSpaceReservationController;
@@ -31,7 +34,10 @@ Route::get('/matches/{id}', [MatchController::class, 'show'])->whereNumber('id')
 Route::get('/sports', [SportController::class, 'index']);
 Route::get('/match-levels', [MatchLevelController::class, 'index']);
 Route::get('/cities', [CityController::class, 'index']);
+Route::get('/banners', [BannerController::class, 'index']);
 Route::get('/courts', [CourtController::class, 'index']);
+Route::get('/courts/featured', [FeaturedCourtController::class, 'index']);
+Route::get('/rankings', [RankingController::class, 'index']);
 Route::get('/courts/{court}/rental-items', [RentalItemController::class, 'index'])->whereNumber('court');
 Route::get('/court-fields', [CourtFieldController::class, 'index']);
 Route::get('/court-fields/{courtField}/availability', [CourtFieldController::class, 'availability']);

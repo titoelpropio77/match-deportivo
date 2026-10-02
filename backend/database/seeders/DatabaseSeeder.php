@@ -27,6 +27,8 @@ class DatabaseSeeder extends Seeder
             CourtSeeder::class,
             StoreSeeder::class,
             UserSeeder::class,
+            TournamentSeeder::class,
+            BannerSeeder::class,
         ]);
 
         (new CourtSeeder)->seedSampleReservation();

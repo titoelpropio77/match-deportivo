@@ -107,6 +107,12 @@ class RolesAndPermissionsSeeder extends Seeder
         // Fixture and results.
         'tournaments.games',
 
+        // Home carousel of the app (platform-wide, not tied to a venue).
+        'banners.index',
+        'banners.store',
+        'banners.update',
+        'banners.destroy',
+
         'users.index',
         'users.show',
         'users.store',
@@ -191,6 +197,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'tournaments.destroy',
             'tournaments.registrations',
             'tournaments.games',
+            'banners.index',
+            'banners.store',
+            'banners.update',
+            'banners.destroy',
             'users.index',
             'users.show',
             'users.store',

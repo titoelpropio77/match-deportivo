@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\BannerController;
 use App\Http\Controllers\CourtController;
 use App\Http\Controllers\CourtFeatureController;
 use App\Http\Controllers\CourtFieldController;
@@ -103,6 +104,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/store-orders/{order}/refund', [StoreOrderController::class, 'refund'])->middleware('permission:store_orders.payments')->name('store-orders.refund');
 
     // Catálogo de categorías de productos
+    // Banners (carrusel de inicio de la app)
+    Route::get('/banners', [BannerController::class, 'index'])->middleware('permission:banners.index')->name('banners.index');
+    Route::get('/banners/create', [BannerController::class, 'create'])->middleware('permission:banners.store')->name('banners.create');
+    Route::post('/banners', [BannerController::class, 'store'])->middleware('permission:banners.store')->name('banners.store');
+    Route::get('/banners/{banner}/edit', [BannerController::class, 'edit'])->middleware('permission:banners.update')->name('banners.edit');
+    Route::put('/banners/{banner}', [BannerController::class, 'update'])->middleware('permission:banners.update')->name('banners.update');
+    Route::delete('/banners/{banner}', [BannerController::class, 'destroy'])->middleware('permission:banners.destroy')->name('banners.destroy');
+
     Route::get('/product-categories', [ProductCategoryController::class, 'index'])->middleware('permission:product_categories.index')->name('product-categories.index');
     Route::get('/product-categories/create', [ProductCategoryController::class, 'create'])->middleware('permission:product_categories.store')->name('product-categories.create');
     Route::post('/product-categories', [ProductCategoryController::class, 'store'])->middleware('permission:product_categories.store')->name('product-categories.store');

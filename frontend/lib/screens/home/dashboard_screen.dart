@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import '../../data/dummy_featured_courts.dart';
+import '../../models/banner_model.dart';
+
 import '../../models/court_field_model.dart';
 import '../../models/event_space_model.dart';
 import '../../models/featured_court_model.dart';
+import '../../services/banner_api_service.dart';
 import '../../services/court_api_service.dart';
+import '../../services/ranking_api_service.dart';
 import '../../services/event_space_api_service.dart';
 import '../../services/match_api_service.dart';
 import '../../services/match_level_api_service.dart';
@@ -16,18 +20,21 @@ import '../../services/user_api_service.dart';
 import '../event_spaces/event_spaces_screen.dart';
 import '../my_courts/my_courts_screen.dart';
 import '../my_reservations/my_reservations_screen.dart';
+import '../ranking/ranking_screen.dart';
+import '../reserve_court/court_field_detail_screen.dart';
 import '../reserve_court/reserve_courts_screen.dart';
 import '../placeholder/coming_soon_screen.dart';
 import '../search_teams/search_teams_screen.dart';
 import '../stores/stores_screen.dart';
 import '../teams/teams_screen.dart';
+import '../tournaments/tournament_detail_screen.dart';
 import '../tournaments/tournaments_screen.dart';
+import 'widgets/banner_carousel.dart';
 import 'widgets/dashboard_header.dart';
 import 'widgets/event_spaces_invite.dart';
 import 'widgets/featured_courts_section.dart';
 import 'widgets/my_courts_section.dart';
 import 'widgets/my_reservations_section.dart';
-import 'widgets/promo_banner.dart';
 import 'widgets/quick_action_item.dart';
 import 'widgets/quick_actions_grid.dart';
 
@@ -57,8 +64,25 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  /// Shown until the server banners arrive, and when there are none.
+  static const _defaultBanners = [
+    BannerModel(
+      id: 0,
+      title: '¡Reserva tu cancha hoy!',
+      subtitle: 'Elige horario y paga con QR en segundos.',
+      buttonLabel: 'Reservar ahora',
+      link: BannerLink(type: BannerLinkType.reserveCourts),
+    ),
+  ];
+
+  List<BannerModel> _banners = _defaultBanners;
+  late final BannerApiService _bannerApiService =
+      BannerApiService(baseUrl: widget.courtApiService.baseUrl);
   List<CourtReservationModel> _reservations = const [];
   List<EventSpaceModel> _eventSpaces = const [];
+  List<FeaturedCourtModel> _featured = const [];
+  bool _featuredLoading = true;
+  String? _featuredError;
   late final EventSpaceApiService _eventSpaceApiService = EventSpaceApiService(
     baseUrl: widget.courtApiService.baseUrl,
     token: widget.courtApiService.token,
@@ -69,6 +93,135 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _loadReservations();
     _loadEventSpaces();
+    _loadFeatured();
+    _loadBanners();
+  }
+
+  /// Failures keep the default banner, so the carousel never disappears.
+  Future<void> _loadBanners() async {
+    try {
+      final banners = await _bannerApiService.list();
+      if (mounted) setState(() => _banners = banners.isEmpty ? _defaultBanners : banners);
+    } catch (_) {
+      if (mounted) setState(() => _banners = _defaultBanners);
+    }
+  }
+
+  /// Opens the app section, record or external page a banner points to.
+  Future<void> _openBanner(BuildContext context, BannerModel banner) async {
+    final link = banner.link;
+    switch (link.type) {
+      case BannerLinkType.none:
+        return;
+      case BannerLinkType.reserveCourts:
+        await _openReservarCancha(context);
+      case BannerLinkType.court:
+        if (link.id != null) await _openCourt(context, link.id!, banner.title);
+      case BannerLinkType.tournaments:
+        _openTournaments(context);
+      case BannerLinkType.tournament:
+        if (link.id != null) _openTournament(context, link.id!);
+      case BannerLinkType.teams:
+        _openTeams(context);
+      case BannerLinkType.stores:
+        _openStores(context);
+      case BannerLinkType.eventSpaces:
+        _openEventSpaces(context);
+      case BannerLinkType.url:
+        await _openExternalUrl(context, link.url);
+    }
+  }
+
+  void _openRanking(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (rankingContext) => RankingScreen(
+          rankingApiService: RankingApiService(baseUrl: widget.courtApiService.baseUrl),
+          onCourtPressed: (court) => _openCourt(rankingContext, court.id, court.name),
+        ),
+      ),
+    );
+  }
+
+  void _openTournament(BuildContext context, int tournamentId) {
+    final baseUrl = widget.matchApiService.baseUrl;
+    final token = widget.matchApiService.token;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => TournamentDetailScreen(
+          tournamentId: tournamentId,
+          tournamentApiService: TournamentApiService(baseUrl: baseUrl, token: token),
+          teamApiService: TeamApiService(baseUrl: baseUrl, token: token),
+          currentUserId: widget.currentUserId,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openExternalUrl(BuildContext context, String? url) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final uri = url == null ? null : Uri.tryParse(url);
+    final opened = uri != null && await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened) {
+      messenger.showSnackBar(const SnackBar(content: Text('No pudimos abrir el enlace.')));
+    }
+  }
+
+  Future<void> _loadFeatured() async {
+    setState(() {
+      _featuredLoading = true;
+      _featuredError = null;
+    });
+    try {
+      final courts = await widget.courtApiService.featured();
+      if (!mounted) return;
+      setState(() {
+        _featured = courts;
+        _featuredLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _featuredError = 'No pudimos cargar los complejos destacados.';
+        _featuredLoading = false;
+      });
+    }
+  }
+
+  /// Opens the booking screen on the first court of a sports center.
+  Future<void> _openCourt(BuildContext context, int courtId, String name) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final today = DateUtils.dateOnly(DateTime.now());
+
+    try {
+      final fields = (await widget.courtApiService.listFields())
+          .where((field) => field.venue.id == courtId)
+          .toList();
+      if (!mounted) return;
+      if (fields.isEmpty) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('$name todavía no tiene canchas para reservar.')),
+        );
+        return;
+      }
+
+      await navigator.push(
+        MaterialPageRoute(
+          builder: (_) => CourtFieldDetailScreen(
+            field: fields.first,
+            initialDate: today,
+            courtApiService: widget.courtApiService,
+          ),
+        ),
+      );
+      _loadReservations();
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No pudimos abrir el complejo. Intenta de nuevo.')),
+      );
+    }
   }
 
   /// The event spaces invitation only appears when some center rents them; failures just hide it.
@@ -219,7 +372,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                PromoBanner(onReservePressed: () => _openReservarCancha(context)),
+                BannerCarousel(
+                  banners: _banners,
+                  onBannerPressed: (banner) => _openBanner(context, banner),
+                ),
                 const SizedBox(height: 24),
                 QuickActionsGrid(
                   actions: [
@@ -241,7 +397,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     QuickActionData(
                       icon: Icons.leaderboard_outlined,
                       label: 'Ranking',
-                      onTap: () => _openComingSoon(context, 'Ranking'),
+                      onTap: () => _openRanking(context),
                     ),
                     QuickActionData(
                       icon: Icons.scoreboard_outlined,
@@ -278,9 +434,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
                 const SizedBox(height: 28),
                 FeaturedCourtsSection(
-                  courts: dummyFeaturedCourts,
-                  onCourtPressed: (FeaturedCourtModel court) =>
-                      _openComingSoon(context, court.name),
+                  courts: _featured,
+                  loading: _featuredLoading,
+                  error: _featuredError,
+                  onRetry: _loadFeatured,
+                  onCourtPressed: (court) => _openCourt(context, court.id, court.name),
                 ),
               ],
             ),

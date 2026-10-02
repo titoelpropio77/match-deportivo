@@ -130,4 +130,21 @@ class Court extends Model
     {
         return $this->hasMany(Store::class);
     }
+
+    /**
+     * [average 1-5 or null, review count]. Player reviews win; until a center has any, the
+     * imported review_data is used. Expects withCount('reviews') and withAvg('reviews', 'rate').
+     *
+     * @return array{0: float|null, 1: int}
+     */
+    public function ratingSummary(): array
+    {
+        if ((int) $this->reviews_count > 0) {
+            return [round((float) $this->reviews_avg_rate, 1), (int) $this->reviews_count];
+        }
+
+        $average = $this->review_data['average'] ?? null;
+
+        return $average === null ? [null, 0] : [(float) $average, (int) ($this->review_data['count'] ?? 0)];
+    }
 }
