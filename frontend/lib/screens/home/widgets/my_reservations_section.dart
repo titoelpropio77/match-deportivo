@@ -17,12 +17,13 @@ class MyReservationsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final upcoming = reservations.where((item) => item.isUpcoming).toList();
+    // Courts booked together count as one reservation.
+    final upcoming = ReservationGroup.fromReservations(reservations).where((group) => group.isUpcoming).toList();
     final next = upcoming.isEmpty ? null : upcoming.first;
     final subtitle = next == null
         ? 'Ver el historial de tus reservas'
         : 'Próxima: ${next.venueName ?? 'Cancha'} · '
-            '${formatReservationDate(next.startsAt)} ${next.startTime}';
+            '${formatReservationDate(next.startsAt)} ${next.first.startTime}';
 
     return Card(
       elevation: 0,

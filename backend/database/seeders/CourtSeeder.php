@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\City;
 use App\Models\Court;
 use App\Models\CourtReservation;
+use App\Models\EventAmenity;
 use App\Models\Sport;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -35,6 +36,36 @@ class CourtSeeder extends Seeder
                     'https://picsum.photos/seed/wally-sur-1/600/400',
                     'https://picsum.photos/seed/wally-sur-2/600/400',
                 ],
+                'rental_items' => [
+                    ['sport' => 'wallyball', 'name' => 'Pelota de wally', 'price' => 10, 'price_type' => 'flat', 'stock' => 6],
+                    ['sport' => 'padel', 'name' => 'Raqueta de pádel', 'price' => 15, 'price_type' => 'per_hour', 'stock' => 8],
+                    ['sport' => 'padel', 'name' => 'Tubo de pelotas de pádel (x3)', 'price' => 25, 'price_type' => 'flat', 'stock' => null],
+                    ['sport' => 'fronton', 'name' => 'Paleta de frontón', 'price' => 10, 'price_type' => 'per_hour', 'stock' => 4],
+                ],
+                'event_spaces' => [
+                    [
+                        'name' => 'Parrillero La Brasa',
+                        'type' => 'grill',
+                        'description' => 'Parrillero techado junto a las canchas, ideal para el asado después del partido.',
+                        'price_per_hour' => 80,
+                        'capacity' => 25,
+                        'min_hours' => 3,
+                        'amenities' => ['grill', 'tables_chairs', 'restrooms', 'fridge', 'covered', 'lighting'],
+                        'rules' => "Traer carbón y utensilios propios.\nMúsica a volumen moderado hasta las 23:00.\nEntregar el espacio limpio.",
+                        'photo_path' => 'https://picsum.photos/seed/parrillero-brasa/800/500',
+                    ],
+                    [
+                        'name' => 'Salón Mirador',
+                        'type' => 'hall',
+                        'description' => 'Salón climatizado con vista a las canchas para cumpleaños, reuniones y eventos de empresa.',
+                        'price_per_hour' => 150,
+                        'capacity' => 60,
+                        'min_hours' => 2,
+                        'amenities' => ['tables_chairs', 'restrooms', 'kitchen', 'sound', 'air_conditioning', 'wifi', 'parking'],
+                        'rules' => 'Decoración sin clavos ni cinta en las paredes.',
+                        'photo_path' => 'https://picsum.photos/seed/salon-mirador/800/500',
+                    ],
+                ],
             ],
             [
                 'name' => 'Canchas El Torneo',
@@ -50,6 +81,11 @@ class CourtSeeder extends Seeder
                 ],
                 'photos' => [
                     'https://picsum.photos/seed/el-torneo-1/600/400',
+                ],
+                'rental_items' => [
+                    ['sport' => 'football_5', 'name' => 'Pelota de fútbol Nº 4', 'price' => 10, 'price_type' => 'flat', 'stock' => 4],
+                    ['sport' => 'football_7', 'name' => 'Pelota de fútbol Nº 5', 'price' => 10, 'price_type' => 'flat', 'stock' => 4],
+                    ['sport' => 'football_7', 'name' => 'Juego de pecheras (x7)', 'price' => 15, 'price_type' => 'flat', 'stock' => 2],
                 ],
             ],
             [
@@ -68,6 +104,10 @@ class CourtSeeder extends Seeder
                     'https://picsum.photos/seed/wally-center-1/600/400',
                     'https://picsum.photos/seed/wally-center-2/600/400',
                 ],
+                'rental_items' => [
+                    ['sport' => 'padel', 'name' => 'Raqueta de pádel', 'price' => 20, 'price_type' => 'per_hour', 'stock' => 6],
+                    ['sport' => 'tennis', 'name' => 'Raqueta de tenis', 'price' => 20, 'price_type' => 'per_hour', 'stock' => 4],
+                ],
             ],
             [
                 'name' => 'Arena Norte',
@@ -84,6 +124,22 @@ class CourtSeeder extends Seeder
                 ],
                 'photos' => [
                     'https://picsum.photos/seed/arena-norte-1/600/400',
+                ],
+                'rental_items' => [
+                    ['sport' => 'basketball', 'name' => 'Pelota de básquet', 'price' => 10, 'price_type' => 'flat', 'stock' => 3],
+                ],
+                'event_spaces' => [
+                    [
+                        'name' => 'Quincho del Norte',
+                        'type' => 'quincho',
+                        'description' => 'Quincho con churrasquera y área verde para niños.',
+                        'price_per_hour' => 60,
+                        'capacity' => 30,
+                        'min_hours' => 3,
+                        'amenities' => ['grill', 'tables_chairs', 'restrooms', 'kids_area', 'covered'],
+                        'rules' => null,
+                        'photo_path' => 'https://picsum.photos/seed/quincho-norte/800/500',
+                    ],
                 ],
             ],
         ];
@@ -122,6 +178,24 @@ class CourtSeeder extends Seeder
                 $fieldSportIds = Sport::query()->whereIn('key', $fieldData['sports'])->pluck('id');
                 $field->sports()->sync($fieldSportIds);
             }
+
+            // Upsert by name and sport so rented gear in existing reservations keeps its link.
+            foreach ($data['rental_items'] ?? [] as $itemData) {
+                $sportId = Sport::query()->where('key', $itemData['sport'])->value('id');
+                if ($sportId === null) {
+                    continue;
+                }
+                $court->rentalItems()->updateOrCreate(
+                    ['name' => $itemData['name'], 'sport_id' => $sportId],
+                    collect($itemData)->except('sport')->all(),
+                );
+            }
+
+            // Upsert by name so existing event reservations are kept.
+            foreach ($data['event_spaces'] ?? [] as $spaceData) {
+                $space = $court->eventSpaces()->updateOrCreate(['name' => $spaceData['name']], collect($spaceData)->except('amenities')->all());
+                $space->amenities()->sync(EventAmenity::query()->whereIn('key', $spaceData['amenities'] ?? [])->pluck('id'));
+            }
         }
 
     }
@@ -155,6 +229,8 @@ class CourtSeeder extends Seeder
                 'hours' => 1,
                 'amount' => 60,
                 'status' => CourtReservation::STATUS_PAID,
+                'payment_method' => 'qr',
+                'paid_at' => now(),
             ]
         );
     }

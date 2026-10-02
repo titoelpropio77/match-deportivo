@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'config/app_config.dart';
 import 'models/user_model.dart';
+import 'screens/complete_profile_screen.dart';
 import 'screens/home/home_shell_screen.dart';
 import 'screens/login_screen.dart';
 import 'services/auth_service.dart';
 import 'services/match_api_service.dart';
+import 'services/social_sign_in_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -90,6 +92,10 @@ class _AuthGateState extends State<_AuthGate> {
     });
   }
 
+  void _handleProfileCompleted(UserModel user) {
+    setState(() => _user = user);
+  }
+
   Future<void> _handleLogout() async {
     final token = _token;
     if (token != null) {
@@ -100,6 +106,8 @@ class _AuthGateState extends State<_AuthGate> {
       }
     }
     await _tokenStorage.clear();
+    // Lets the next Google / Facebook login choose another account.
+    await SocialSignInService().signOut();
     if (!mounted) return;
     setState(() {
       _token = null;
@@ -116,6 +124,17 @@ class _AuthGateState extends State<_AuthGate> {
           body: Center(child: CircularProgressIndicator()),
         );
       case _SessionStatus.authenticated:
+        // A new Google / Facebook account fills in its data before entering the app.
+        if (!_user!.profileCompleted) {
+          return CompleteProfileScreen(
+            key: ValueKey('complete-profile-${_user!.id}'),
+            user: _user!,
+            token: _token!,
+            authService: _authService,
+            onCompleted: _handleProfileCompleted,
+            onLogout: _handleLogout,
+          );
+        }
         return HomeShellScreen(
           user: _user!,
           matchApiService: MatchApiService(

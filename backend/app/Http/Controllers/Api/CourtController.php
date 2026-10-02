@@ -23,7 +23,7 @@ class CourtController extends Controller
         $search = trim((string) ($validated['search'] ?? ''));
 
         $courts = Court::query()
-            ->with(['city', 'sports', 'photos', 'fields.sports'])
+            ->with(['city', 'sports', 'photos', 'fields.sports', 'fields.features'])
             ->when(isset($validated['city_id']), fn ($query) => $query->where('city_id', $validated['city_id']))
             ->when($search !== '', fn ($query) => $query->search($search)->limit(20))
             ->orderBy('name')

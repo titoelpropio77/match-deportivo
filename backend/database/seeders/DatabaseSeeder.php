@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
             RatingTagSeeder::class,
             MatchLevelSeeder::class,
             CourtSeeder::class,
+            StoreSeeder::class,
             UserSeeder::class,
         ]);
 

@@ -5,14 +5,26 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../services/social_sign_in_service.dart';
+import '../services/sport_api_service.dart';
+import 'profile/favorite_sports_picker.dart';
+import 'widgets/social_auth_buttons.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({
     required this.authService,
     required this.tokenStorage,
     required this.onAuthenticated,
+    this.sportApiService,
+    this.socialSignIn,
     super.key,
   });
+
+  /// Google / Facebook sign up; defaults to the native SDKs.
+  final SocialSignInService? socialSignIn;
+
+  /// Lists the sports for "Mis deportes favoritos"; defaults to one on [authService]'s URL.
+  final SportApiService? sportApiService;
 
   final AuthService authService;
   final TokenStorage tokenStorage;
@@ -23,6 +35,9 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  late final SportApiService _sportApiService =
+      widget.sportApiService ?? SportApiService(baseUrl: widget.authService.baseUrl);
+  Set<int> _favoriteSportIds = {};
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -37,6 +52,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Uint8List? _photoBytes;
   String? _photoName;
   String? _gender;
+  DateTime? _birthDate;
+
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _birthDate ?? DateTime(now.year - 25),
+      firstDate: DateTime(1920),
+      lastDate: DateTime(now.year - 5, now.month, now.day),
+      initialDatePickerMode: DatePickerMode.year,
+      helpText: 'Fecha de nacimiento',
+    );
+    if (picked != null) setState(() => _birthDate = picked);
+  }
 
   @override
   void dispose() {
@@ -62,6 +91,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: _emailController.text.trim(),
         phone: _phoneController.text,
         gender: _gender!,
+        birthDate: _birthDate,
+        favoriteSportIds: _favoriteSportIds.toList(),
         password: _passwordController.text,
         passwordConfirmation: _confirmPasswordController.text,
         photoPath: _photoPath,
@@ -302,6 +333,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
+                    InkWell(
+                      onTap: _isLoading ? null : _pickBirthDate,
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Fecha de nacimiento (opcional)',
+                          helperText: 'Para mostrar tu edad en tu perfil de jugador.',
+                          prefixIcon: Icon(Icons.cake_outlined),
+                        ),
+                        child: Text(
+                          _birthDate == null
+                              ? 'Elegir fecha'
+                              : '${_birthDate!.day.toString().padLeft(2, '0')}/${_birthDate!.month.toString().padLeft(2, '0')}/${_birthDate!.year}',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    FavoriteSportsPicker(
+                      sportApiService: _sportApiService,
+                      selectedIds: _favoriteSportIds,
+                      enabled: !_isLoading,
+                      onChanged: (ids) => setState(() => _favoriteSportIds = ids),
+                    ),
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: _passwordController,
                       enabled: !_isLoading,
@@ -359,6 +413,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Text('Crear cuenta'),
+                    ),
+                    const SizedBox(height: 24),
+                    SocialAuthButtons(
+                      authService: widget.authService,
+                      tokenStorage: widget.tokenStorage,
+                      onAuthenticated: widget.onAuthenticated,
+                      socialSignIn: widget.socialSignIn,
+                      enabled: !_isLoading,
                     ),
                   ],
                 ),

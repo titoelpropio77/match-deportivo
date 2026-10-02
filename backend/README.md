@@ -1,79 +1,68 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Match Deportivo · API (backend)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+API REST de Match Deportivo: reserva de canchas por hora y partidos abiertos (matchmaking) en Bolivia.
+Laravel 13 (PHP 8.3+), Sanctum (tokens Bearer) y PostgreSQL 16.
 
-## About Laravel
-
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
-
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+El panel de administración (`/admin`) y la app Flutter (`/frontend`) usan esta misma base de datos y esta API.
+Las reglas de negocio completas están en [`.github/copilot-instructions.md`](../.github/copilot-instructions.md).
 
 ## Desarrollo con Docker
 
-Desde esta carpeta, inicia Laravel y PostgreSQL con:
+Desde esta carpeta, inicia la API, el panel y PostgreSQL con:
 
 ```bash
 docker compose up -d --build
 ```
 
-La API queda disponible en `http://localhost:8000` y PostgreSQL en el puerto `5432`. Las migraciones se ejecutan automáticamente al iniciar el contenedor de Laravel.
-
-El contenedor ejecuta `composer install` en cada inicio para sincronizar el volumen de dependencias con `composer.lock`. Por eso, después de añadir o actualizar un paquete, reinicia el servicio con `docker compose up -d --build`; no elimines el volumen de PostgreSQL para resolver cambios de dependencias.
-
-Para ver los logs o detener los servicios:
+- API: `http://localhost:8000` · Panel admin: `http://localhost:8001` · PostgreSQL: puerto `5432`.
+- Las migraciones se ejecutan automáticamente al iniciar el contenedor `app`; luego el contenedor `admin` corre sus migraciones y seeders.
+- El contenedor ejecuta `composer install` en cada inicio para sincronizar el volumen de dependencias con `composer.lock`. Después de añadir o actualizar un paquete, reinicia con `docker compose up -d --build`; no elimines el volumen de PostgreSQL para resolver cambios de dependencias.
 
 ```bash
-docker compose logs -f app
-docker compose down
+docker compose logs -f app            # logs
+docker compose exec app php artisan … # comandos artisan
+docker compose down                   # detener
 ```
 
-Los datos de PostgreSQL se conservan en el volumen `backend_postgres_data`. Para eliminar también esos datos, usa `docker compose down -v`.
+Los datos de PostgreSQL se conservan en el volumen `backend_postgres_data`. Para eliminarlos también, usa `docker compose down -v`.
 
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Tests
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+docker compose exec app php vendor/bin/phpunit
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Los tests usan SQLite en memoria: `phpunit.xml` fuerza las variables `DB_*` (con `force="true"`) porque el contenedor las define como variables reales; sin eso `RefreshDatabase` borraría la base de desarrollo.
 
-## Contributing
+## Módulos principales
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+| Módulo | Dónde |
+|---|---|
+| Autenticación y perfil | `AuthController`, `UserController` |
+| Partidos (crear, unirse, lista de espera, terminar y calificar) | `MatchController` |
+| Centros deportivos y canchas físicas | `CourtController`, `CourtFieldController` |
+| Reservas de canchas (una o varias canchas y horas, pago QR simulado) | `CourtBookingController`, `CourtFieldController`, `App\Services\CourtBookingService` |
 
-## Code of Conduct
+### Reservas
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- La disponibilidad se calcula por cancha física en bloques de 1 hora (`CourtField::slotsForDate`): cada hora es `available`, `reserved` (con el deporte reservado) o `past`.
+- Un **booking** agrupa todos los rangos que el jugador reserva juntos (varias canchas y/o varias horas), comparten `booking_code` y se pagan con un solo QR. Se reserva todo o nada.
+- Estados: `pending_payment` (aparta el horario 15 minutos), `confirmed` (registrada en el panel, paga en el local), `paid` y `cancelled`.
+- El pago QR es **simulado** (`POST /api/court-bookings/{code}/pay`); falta conectar el webhook del banco.
 
-## Security Vulnerabilities
+## Endpoints
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Públicos: `POST /api/register`, `POST /api/login`, `GET /api/matches`, `GET /api/matches/{id}`, `GET /api/sports`, `GET /api/match-levels`, `GET /api/cities`, `GET /api/courts`, `GET /api/court-fields`, `GET /api/court-fields/{id}/availability?date=`.
 
-## License
+Con token (`Authorization: Bearer …`):
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+- Sesión: `GET /api/me`, `POST /api/logout`.
+- Partidos: `GET /api/matches/mine`, `/organized`, `/organized/past`, `POST /api/matches`, `POST /api/matches/{id}/join`, `DELETE /api/matches/{id}/leave`, `DELETE /api/matches/{id}`, `POST /api/matches/{id}/finish`, gestión de jugadores.
+- Usuarios: `GET /api/users/search?query=`.
+- Reservas:
+  - `POST /api/court-bookings` con `items[]` (`court_field_id`, `sport_id`, `date`, `start_time`, `hours`).
+  - `POST /api/court-bookings/{code}/pay` · `POST /api/court-bookings/{code}/cancel`.
+  - `GET /api/court-reservations` (mis reservas).
+  - Reserva individual (heredado): `POST /api/court-reservations`, `POST /api/court-reservations/{id}/pay`, `POST /api/court-reservations/{id}/cancel`.
+
+El detalle de cada ruta está en `routes/api.php`.

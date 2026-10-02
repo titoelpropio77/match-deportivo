@@ -63,4 +63,8 @@
 </div>
 
 
-@include('courts.partials.photos-input')
+@include('partials.photos-input', [
+    'photos' => $court->exists ? $court->photos : collect(),
+    'alt' => 'Foto de '.$court->name,
+    'hint' => 'JPG, PNG o WEBP, hasta 5 MB cada una y '.\App\Models\Court::MAX_PHOTOS.' por centro deportivo. Se muestran en la app en este orden.',
+])

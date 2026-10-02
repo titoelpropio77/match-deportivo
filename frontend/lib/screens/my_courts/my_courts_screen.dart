@@ -15,8 +15,11 @@ class MyCourtsScreen extends StatefulWidget {
   const MyCourtsScreen({
     required this.matchApiService,
     required this.currentUserId,
+    this.title = 'Mis canchas',
     super.key,
   });
+
+  final String title;
 
   final MatchApiService matchApiService;
   final int currentUserId;
@@ -126,7 +129,7 @@ class _MyCourtsScreenState extends State<MyCourtsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mis canchas')),
+      appBar: AppBar(title: Text(widget.title)),
       body: _buildBody(context),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openCreateMatch,

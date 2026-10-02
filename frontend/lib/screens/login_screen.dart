@@ -2,19 +2,25 @@ import 'package:flutter/material.dart';
 
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../services/social_sign_in_service.dart';
 import 'register_screen.dart';
+import 'widgets/social_auth_buttons.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
     required this.authService,
     required this.tokenStorage,
     required this.onAuthenticated,
+    this.socialSignIn,
     super.key,
   });
 
   final AuthService authService;
   final TokenStorage tokenStorage;
   final void Function(UserModel user, String token) onAuthenticated;
+
+  /// Google / Facebook sign in; defaults to the native SDKs.
+  final SocialSignInService? socialSignIn;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -26,6 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _socialBusy = false;
   bool _obscurePassword = true;
   String? _errorMessage;
 
@@ -74,6 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
           authService: widget.authService,
           tokenStorage: widget.tokenStorage,
           onAuthenticated: widget.onAuthenticated,
+          socialSignIn: widget.socialSignIn,
         ),
       ),
     );
@@ -158,7 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 24),
                     FilledButton(
-                      onPressed: _isLoading ? null : _submit,
+                      onPressed: _isLoading || _socialBusy ? null : _submit,
                       child: _isLoading
                           ? const SizedBox(
                               height: 20,
@@ -167,9 +175,20 @@ class _LoginScreenState extends State<LoginScreen> {
                             )
                           : const Text('Ingresar'),
                     ),
+                    const SizedBox(height: 24),
+                    SocialAuthButtons(
+                      authService: widget.authService,
+                      tokenStorage: widget.tokenStorage,
+                      onAuthenticated: widget.onAuthenticated,
+                      socialSignIn: widget.socialSignIn,
+                      enabled: !_isLoading,
+                      onBusyChanged: (busy) {
+                        if (mounted) setState(() => _socialBusy = busy);
+                      },
+                    ),
                     const SizedBox(height: 12),
                     TextButton(
-                      onPressed: _isLoading ? null : _goToRegister,
+                      onPressed: _isLoading || _socialBusy ? null : _goToRegister,
                       child: const Text('¿No tenés cuenta? Registrate'),
                     ),
                   ],

@@ -2,13 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\Courts\CourtManagerRequest;
 use App\Models\Court;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Managers of a venue, assigned by its owner (or platform staff) from the venue edit screen.
@@ -16,36 +15,9 @@ use Illuminate\Validation\ValidationException;
  */
 class CourtManagerController extends Controller
 {
-    /**
-     * Roles that may be turned into a manager: app players or existing managers, never other panel staff.
-     */
-    private const ASSIGNABLE_FROM = ['cliente', 'manager'];
-
-    public function store(Request $request, Court $court): RedirectResponse
+    public function store(CourtManagerRequest $request, Court $court): RedirectResponse
     {
-        Gate::authorize('assignManagers', $court);
-
-        $validated = $request->validateWithBag('manager', [
-            'email' => ['required', 'email', 'exists:users,email'],
-        ], [
-            'email.exists' => 'No hay ningún usuario registrado con ese email.',
-        ], [
-            'email' => 'email',
-        ]);
-
-        $user = User::query()->where('email', $validated['email'])->firstOrFail();
-
-        $fail = fn (string $message) => throw ValidationException::withMessages(['email' => $message])->errorBag('manager');
-        if ($user->id === $court->owner_id) {
-            $fail('El dueño del centro deportivo no puede ser su manager.');
-        }
-        $otherRoles = $user->getRoleNames()->diff(self::ASSIGNABLE_FROM);
-        if ($otherRoles->isNotEmpty()) {
-            $fail("{$user->name} ya tiene acceso al panel con el rol {$otherRoles->implode(', ')}.");
-        }
-        if ($court->managers()->whereKey($user->id)->exists()) {
-            $fail("{$user->name} ya es manager de este centro deportivo.");
-        }
+        $user = $request->manager();
 
         DB::transaction(function () use ($court, $user): void {
             $court->managers()->attach($user->id);

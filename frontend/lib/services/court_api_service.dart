@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/court_field_model.dart';
 import '../models/court_model.dart';
+import '../models/rental_item_model.dart';
 
 class CourtApiException implements Exception {
   const CourtApiException(this.message, this.statusCode);
@@ -91,26 +92,46 @@ class CourtApiService {
     return CourtAvailabilityModel.fromJson(decoded['data'] as Map<String, dynamic>);
   }
 
-  Future<CourtReservationModel> reserve({
-    required int fieldId,
-    required int sportId,
-    required DateTime date,
-    required String startTime,
-    required int hours,
-  }) async {
-    final response = await _client.post(
-      Uri.parse('$_baseUrl/api/court-reservations'),
+  /// Active gear the sports center rents with its courts (balls, rackets...).
+  Future<List<RentalItemModel>> rentalItems(int courtId) async {
+    final response = await _client.get(
+      Uri.parse('$_baseUrl/api/courts/$courtId/rental-items'),
       headers: _headers(),
-      body: jsonEncode({
-        'court_field_id': fieldId,
-        'sport_id': sportId,
-        'date': _formatDate(date),
-        'start_time': startTime,
-        'hours': hours,
-      }),
     );
     final decoded = _decode(response);
-    return CourtReservationModel.fromJson(decoded['data'] as Map<String, dynamic>);
+    return (decoded['data'] as List)
+        .map((item) => RentalItemModel.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Books every item at once (all or nothing); they are paid together with one QR.
+  Future<CourtBookingModel> createBooking(List<BookingItem> items) async {
+    final response = await _client.post(
+      Uri.parse('$_baseUrl/api/court-bookings'),
+      headers: _headers(),
+      body: jsonEncode({'items': items.map((item) => item.toJson()).toList()}),
+    );
+    final decoded = _decode(response);
+    return CourtBookingModel.fromJson(decoded['data'] as Map<String, dynamic>);
+  }
+
+  /// Simulated QR payment of a whole booking.
+  Future<CourtBookingModel> payBooking(String code) async {
+    final response = await _client.post(
+      Uri.parse('$_baseUrl/api/court-bookings/$code/pay'),
+      headers: _headers(),
+    );
+    final decoded = _decode(response);
+    return CourtBookingModel.fromJson(decoded['data'] as Map<String, dynamic>);
+  }
+
+  /// Releases every unpaid range of a booking.
+  Future<void> cancelBooking(String code) async {
+    final response = await _client.post(
+      Uri.parse('$_baseUrl/api/court-bookings/$code/cancel'),
+      headers: _headers(),
+    );
+    _decode(response);
   }
 
   /// Reservations of the signed-in user, upcoming first.

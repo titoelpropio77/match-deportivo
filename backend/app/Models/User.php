@@ -4,15 +4,16 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
-use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['name', 'nickname', 'email', 'phone', 'preferred_position', 'gender', 'avatar_path', 'password'])]
+#[Fillable(['name', 'nickname', 'email', 'phone', 'preferred_position', 'gender', 'birth_date', 'avatar_path', 'password', 'email_verified_at', 'profile_completed_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -61,6 +62,32 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'birth_date' => 'date',
+            'profile_completed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Teams the user belongs to (as captain or player).
+     */
+    public function teams(): BelongsToMany
+    {
+        return $this->belongsToMany(Team::class, 'team_members')->withTimestamps();
+    }
+
+    /**
+     * Sports the player likes ("Mis deportes favoritos").
+     */
+    public function favoriteSports(): BelongsToMany
+    {
+        return $this->belongsToMany(Sport::class, 'user_favorite_sports')->withTimestamps()->orderBy('name');
+    }
+
+    /**
+     * Google / Facebook accounts linked to the user.
+     */
+    public function socialAccounts(): HasMany
+    {
+        return $this->hasMany(SocialAccount::class);
     }
 }

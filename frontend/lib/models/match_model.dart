@@ -3,6 +3,7 @@ import 'match_level_model.dart';
 import 'match_player_model.dart';
 import 'sport_model.dart';
 import 'user_model.dart';
+import 'team_model.dart';
 
 enum MatchStatus {
   open('open'),
@@ -49,6 +50,7 @@ class MatchModel {
     this.level,
     this.court,
     this.courtFields = const [],
+    this.teams = const [],
     this.organizer,
     this.players,
     required this.scheduledAt,
@@ -73,6 +75,9 @@ class MatchModel {
 
   /// Courts of the sports center where the match is played.
   final List<CourtFieldOption> courtFields;
+
+  /// Teams added when the match was created (their members are among the players).
+  final List<TeamModel> teams;
   final UserModel? organizer;
   final List<MatchPlayerModel>? players;
   final DateTime scheduledAt;
@@ -106,6 +111,9 @@ class MatchModel {
           ? CourtModel.fromJson(json['court'] as Map<String, dynamic>)
           : null,
       courtFields: CourtFieldOption.listFromJson(json['court_fields']),
+      teams: (json['teams'] as List<dynamic>? ?? const [])
+          .map((item) => TeamModel.fromJson(item as Map<String, dynamic>))
+          .toList(),
       organizer: json['organizer'] != null
           ? UserModel.fromJson(json['organizer'] as Map<String, dynamic>)
           : null,

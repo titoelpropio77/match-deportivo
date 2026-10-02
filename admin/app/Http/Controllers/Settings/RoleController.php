@@ -2,25 +2,23 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\DataTables\RoleDataTable;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Settings\RoleRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
-    private const PROTECTED_ROLES = ['superadmin'];
+    public const PROTECTED_ROLES = ['superadmin'];
 
-    public function index(): View
+    public function index(RoleDataTable $dataTable): mixed
     {
-        return view('settings.roles.index', [
-            'roles' => Role::query()->withCount(['permissions', 'users'])->orderBy('id')->get(),
-        ]);
+        return $dataTable->render('settings.roles.index');
     }
 
     public function create(): View
@@ -32,9 +30,9 @@ class RoleController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(RoleRequest $request): RedirectResponse
     {
-        $validated = $this->validateRole($request);
+        $validated = $request->validated();
 
         $role = Role::create(['name' => $validated['name'], 'guard_name' => 'web']);
         $role->syncPermissions($validated['permissions'] ?? []);
@@ -51,13 +49,13 @@ class RoleController extends Controller
         ]);
     }
 
-    public function update(Request $request, Role $role): RedirectResponse
+    public function update(RoleRequest $request, Role $role): RedirectResponse
     {
         if ($this->isProtected($role)) {
             return back()->with('error', 'El rol superadmin no se puede modificar: siempre tiene todos los permisos.');
         }
 
-        $validated = $this->validateRole($request, $role);
+        $validated = $request->validated();
 
         $role->update(['name' => $validated['name']]);
         $role->syncPermissions($validated['permissions'] ?? []);
@@ -74,29 +72,6 @@ class RoleController extends Controller
         $role->delete();
 
         return response()->json(['message' => "Rol {$role->name} eliminado."]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function validateRole(Request $request, ?Role $role = null): array
-    {
-        return $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:125',
-                'regex:/^[a-z0-9_]+$/',
-                Rule::unique('roles', 'name')->where('guard_name', 'web')->ignore($role),
-            ],
-            'permissions' => ['sometimes', 'array'],
-            'permissions.*' => ['string', Rule::exists('permissions', 'name')->where('guard_name', 'web')],
-        ], [
-            'name.regex' => 'Usa solo minúsculas, números y guion bajo (ej: admin_cancha).',
-        ], [
-            'name' => 'nombre',
-            'permissions' => 'permisos',
-        ]);
     }
 
     /**

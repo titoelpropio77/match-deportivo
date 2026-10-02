@@ -7,6 +7,8 @@ import '../../models/rating_tag_model.dart';
 import '../../models/user_model.dart';
 import '../../services/match_api_service.dart';
 import '../../services/user_api_service.dart';
+import '../profile/player_profile_screen.dart';
+import '../teams/widgets/team_badge.dart';
 import 'widgets/add_player_sheet.dart';
 import 'widgets/court_info_header.dart';
 import 'widgets/finish_match_dialog.dart';
@@ -213,6 +215,21 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
       setState(() => _isProcessing = false);
       _showMessage(_errorMessage(error), isError: true);
     }
+  }
+
+  void _openPlayerProfile(int userId) {
+    final players = _match?.players ?? const <MatchPlayerModel>[];
+    final user = players.where((player) => player.user?.id == userId).firstOrNull?.user ??
+        (_match?.organizer?.id == userId ? _match?.organizer : null);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PlayerProfileScreen(
+          userId: userId,
+          initialUser: user,
+          userApiService: _userApiService,
+        ),
+      ),
+    );
   }
 
   Future<void> _showPlayerReview(MatchPlayerModel player) async {
@@ -624,6 +641,22 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                       .toList(),
                 ),
               ],
+              if (match.teams.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text('Equipos', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final team in match.teams)
+                      Chip(
+                        avatar: TeamBadge(team: team, size: 24),
+                        label: Text(team.name),
+                      ),
+                  ],
+                ),
+              ],
               if (match.paymentQrUrl != null &&
                   match.paymentQrUrl!.isNotEmpty) ...[
                 const SizedBox(height: 24),
@@ -668,6 +701,7 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                 isFull: _isFull,
                 onViewPlayer: _isProcessing ? null : _showPlayerReview,
                 onRemovePlayer: _isProcessing ? null : _handleRemovePlayer,
+                onOpenProfile: _openPlayerProfile,
                 onAddPlayer: _isProcessing
                     ? null
                     : () => _openAddPlayer(toReserve: false),

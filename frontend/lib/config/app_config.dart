@@ -14,4 +14,10 @@ class AppConfig {
     }
     return url.replaceFirst(RegExp(r'/$'), '');
   }
+
+  /// Web OAuth client id from Google Cloud; Android needs it to sign in with Google.
+  static String? get googleServerClientId {
+    final id = dotenv.env['google_server_client_id']?.trim();
+    return id == null || id.isEmpty ? null : id;
+  }
 }

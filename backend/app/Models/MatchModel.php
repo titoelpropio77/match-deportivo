@@ -23,6 +23,7 @@ class MatchModel extends Model
         'sport_id',
         'level_id',
         'court_id',
+        'booking_code',
         'gender',
         'payment_qr_path',
         'scheduled_at',
@@ -91,6 +92,15 @@ class MatchModel extends Model
     {
         return $this->belongsToMany(CourtField::class, 'match_court_field', 'match_id', 'court_field_id')
             ->orderBy('court_fields.name');
+    }
+
+    /**
+     * Teams added when the match was created; their members were added as players.
+     */
+    public function teams(): BelongsToMany
+    {
+        return $this->belongsToMany(Team::class, 'match_team', 'match_id', 'team_id')
+            ->select(['teams.id', 'teams.name', 'teams.short_name', 'teams.primary_color', 'teams.logo_path', 'teams.sport_id']);
     }
 
     /**

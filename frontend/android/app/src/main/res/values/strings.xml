@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Facebook login (flutter_facebook_auth). Replace with the values of the Facebook app:
+         developers.facebook.com > your app > Settings > Basic (App ID) and Advanced (Client token).
+         The SDK needs them present to start, even before Facebook login is set up. -->
+    <string name="facebook_app_id">000000000000000</string>
+    <string name="facebook_client_token">REEMPLAZAR_CLIENT_TOKEN</string>
+    <string name="fb_login_protocol_scheme">fb000000000000000</string>
+</resources>
