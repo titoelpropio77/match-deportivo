@@ -2,8 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\CourtFieldFeature;
-use Illuminate\Database\Eloquent\Casts\AsEnumCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -18,7 +16,9 @@ class CourtField extends Model
         'price_per_hour',
         'dimensions',
         'description',
-        'features',
+        'air_conditioning_price',
+        'lighting_price',
+        'lighting_from',
     ];
 
     /**
@@ -28,8 +28,67 @@ class CourtField extends Model
     {
         return [
             'price_per_hour' => 'decimal:2',
-            'features' => AsEnumCollection::of(CourtFieldFeature::class),
+            'air_conditioning_price' => 'decimal:2',
+            'lighting_price' => 'decimal:2',
         ];
+    }
+
+    /**
+     * Air conditioning is an option the player picks (and pays per hour) only when the court has it and a price is set.
+     */
+    public function offersAirConditioning(): bool
+    {
+        return $this->hasFeature(CourtFeature::AIR_CONDITIONING)
+            && (float) $this->air_conditioning_price > 0;
+    }
+
+    /**
+     * Night lighting is charged per hour from lighting_from when the court has it and a price is set.
+     */
+    public function chargesLighting(): bool
+    {
+        return $this->hasFeature(CourtFeature::LIGHTING)
+            && (float) $this->lighting_price > 0
+            && $this->lighting_from !== null;
+    }
+
+    /**
+     * Whether the hour starting at $start is played with the lights on (and charged for them):
+     * any part of it falls after lighting_from.
+     */
+    public function isLitHour(Carbon $start): bool
+    {
+        if (! $this->chargesLighting()) {
+            return false;
+        }
+
+        return $start->copy()->addHour()->gt(Carbon::parse($start->toDateString().' '.$this->lighting_from));
+    }
+
+    /**
+     * Extras of a booked range: air conditioning when chosen, plus lighting for every hour from lighting_from.
+     *
+     * @return array{air_conditioning: bool, air_conditioning_amount: float, lighting_amount: float}
+     */
+    public function surchargesFor(Carbon $start, Carbon $end, bool $airConditioning): array
+    {
+        $hours = (int) $start->diffInHours($end);
+        $litHours = 0;
+        for ($hour = $start->copy(); $hour->lt($end); $hour->addHour()) {
+            $litHours += $this->isLitHour($hour) ? 1 : 0;
+        }
+        $airConditioning = $airConditioning && $this->offersAirConditioning();
+
+        return [
+            'air_conditioning' => $airConditioning,
+            'air_conditioning_amount' => $airConditioning ? round((float) $this->air_conditioning_price * $hours, 2) : 0.0,
+            'lighting_amount' => round((float) $this->lighting_price * $litHours, 2),
+        ];
+    }
+
+    public function hasFeature(string $key): bool
+    {
+        return $this->features->contains('key', $key);
     }
 
     public function court(): BelongsTo
@@ -42,6 +101,11 @@ class CourtField extends Model
         return $this->belongsToMany(Sport::class, 'court_field_sport');
     }
 
+    public function features(): BelongsToMany
+    {
+        return $this->belongsToMany(CourtFeature::class, 'court_field_feature')->orderBy('name');
+    }
+
     public function reservations(): HasMany
     {
         return $this->hasMany(CourtReservation::class);
@@ -52,7 +116,7 @@ class CourtField extends Model
      * on this physical court overlaps it, regardless of the sport, or when it already started.
      * Reserved slots carry the sport they were booked for.
      *
-     * @return list<array{start: string, end: string, available: bool, status: string, sport: array{id: int, name: string}|null}>
+     * @return list<array{start: string, end: string, available: bool, status: string, lighting: bool, sport: array{id: int, name: string}|null}>
      */
     public function slotsForDate(string $date): array
     {
@@ -86,6 +150,8 @@ class CourtField extends Model
                 'end' => $end->format('H:i'),
                 'available' => $status === 'available',
                 'status' => $status,
+                // Night hour: the lighting extra is added to its price.
+                'lighting' => $this->isLitHour($cursor),
                 'sport' => $reservation?->sport
                     ? ['id' => $reservation->sport->id, 'name' => $reservation->sport->name]
                     : null,

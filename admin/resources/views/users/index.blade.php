@@ -19,41 +19,11 @@
             @include('partials.table-toolbar', ['table' => 'users-table'])
         </div>
         <div class="card-body">
-            <table id="users-table" class="table table-hover w-100">
-                <thead>
-                <tr>
-                    <th>Id</th>
-                    <th>Nombre</th>
-                    <th>Nickname</th>
-                    <th>Email</th>
-                    <th>Teléfono</th>
-                    <th>Rol</th>
-                    <th>Actualizado</th>
-                    <th class="no-export no-colvis">Acción</th>
-                </tr>
-                </thead>
-            </table>
+            {!! $dataTable->table() !!}
         </div>
     </div>
 @endsection
 
 @push('scripts')
-    <script>
-        AdminTable.init('#users-table', {
-            processing: true,
-            serverSide: true,
-            ajax: @json(route('users.data')),
-            order: [[0, 'desc']],
-            columns: [
-                { data: 'id', name: 'id' },
-                { data: 'name', name: 'name' },
-                { data: 'nickname', name: 'nickname', defaultContent: '—' },
-                { data: 'email', name: 'email' },
-                { data: 'phone', name: 'phone', defaultContent: '—' },
-                { data: 'roles', name: 'roles', orderable: false },
-                { data: 'updated_at', name: 'updated_at', searchable: false },
-                { data: 'action', name: 'action', orderable: false, searchable: false },
-            ],
-        });
-    </script>
+    {!! $dataTable->scripts() !!}
 @endpush

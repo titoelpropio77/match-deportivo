@@ -137,6 +137,8 @@ class MatchApiService {
     required DateTime endTime,
     required int maxPlayers,
     List<int> playerIds = const [],
+    List<int> teamIds = const [],
+    String? bookingCode,
     bool joinAsPlayer = false,
     String? paymentQrPath,
     List<int>? paymentQrBytes,
@@ -153,9 +155,13 @@ class MatchApiService {
       'end_time': endTime.toIso8601String(),
       'max_players': maxPlayers.toString(),
       'join_as_player': joinAsPlayer ? '1' : '0',
+      'booking_code': ?bookingCode,
     });
     for (var index = 0; index < playerIds.length; index++) {
       request.fields['player_ids[$index]'] = playerIds[index].toString();
+    }
+    for (var index = 0; index < teamIds.length; index++) {
+      request.fields['team_ids[$index]'] = teamIds[index].toString();
     }
     for (var index = 0; index < courtFieldIds.length; index++) {
       request.fields['court_field_ids[$index]'] = courtFieldIds[index]

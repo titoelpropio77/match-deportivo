@@ -6,6 +6,7 @@ use App\Models\Court;
 use App\Models\CourtField;
 use App\Models\CourtReservation;
 use App\Models\MatchModel;
+use App\Models\StoreOrder;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -19,6 +20,8 @@ class DashboardController extends Controller
     {
         $user = $request->user();
         $courtIds = Court::query()->visibleTo($user)->select('id');
+        $reservations = fn () => CourtReservation::query()
+            ->whereHas('field', fn ($field) => $field->whereIn('court_id', $courtIds));
 
         return view('dashboard', [
             'stats' => [
@@ -29,11 +32,34 @@ class DashboardController extends Controller
                     ->whereIn('court_id', $courtIds)
                     ->whereIn('status', ['open', 'full'])
                     ->count(),
-                'reservations' => CourtReservation::query()
-                    ->whereHas('field', fn ($field) => $field->whereIn('court_id', $courtIds))
-                    ->where('status', '!=', 'cancelled')
-                    ->count(),
+                'reservationsToday' => $reservations()->blocking()->whereDate('reserved_on', today())->count(),
+                'monthIncome' => $user->can('reservations.index')
+                    ? (float) $reservations()->collected()
+                        ->whereBetween('paid_at', [now()->startOfMonth(), now()->endOfMonth()])
+                        ->sum('amount')
+                    : null,
+                'pendingRefunds' => $user->can('reservations.index')
+                    ? $reservations()->where('status', CourtReservation::STATUS_CANCELLED)
+                        ->whereNotNull('paid_at')->whereNull('refunded_at')->count()
+                    : 0,
+                // Paid store purchases (app or counter) not handed to the customer yet.
+                'ordersToDeliver' => $user->can('store_orders.index')
+                    ? StoreOrder::query()->visibleTo($user)->where('status', StoreOrder::STATUS_PAID)->whereNull('delivered_at')->count()
+                    : 0,
             ],
+            'upcomingReservations' => $user->can('reservations.index')
+                ? $reservations()
+                    ->with(['field.court:id,name', 'sport:id,name', 'user:id,name'])
+                    ->blocking()
+                    ->where(fn ($query) => $query
+                        ->whereDate('reserved_on', '>', today())
+                        ->orWhere(fn ($today) => $today->whereDate('reserved_on', today())
+                            ->where('ends_at', '>', now()->format('H:i:s'))))
+                    ->orderBy('reserved_on')
+                    ->orderBy('starts_at')
+                    ->limit(8)
+                    ->get()
+                : collect(),
             'latestUsers' => User::query()->with('roles')->latest()->limit(5)->get(),
         ]);
     }

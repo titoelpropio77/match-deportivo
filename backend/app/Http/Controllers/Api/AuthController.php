@@ -29,9 +29,13 @@ class AuthController extends Controller
             'email' => $request->validated('email'),
             'phone' => $request->validated('phone'),
             'gender' => $request->validated('gender'),
+            'birth_date' => $request->validated('birth_date'),
             'avatar_path' => $avatarPath,
             'password' => Hash::make($request->validated('password')),
         ]);
+
+        $user->favoriteSports()->sync($request->validated('favorite_sport_ids') ?? []);
+        $user->load('favoriteSports');
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -59,7 +63,7 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'user' => new UserResource($user),
+            'user' => new UserResource($user->load('favoriteSports')),
             'token' => $token,
         ]);
     }
@@ -70,7 +74,7 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return response()->json([
-            'user' => new UserResource($request->user()),
+            'user' => new UserResource($request->user()->load('favoriteSports')),
         ]);
     }
 

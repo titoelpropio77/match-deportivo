@@ -14,9 +14,15 @@
             <div class="card card-primary card-outline">
                 <div class="card-header">
                     <h3 class="card-title">{{ $court->name }}</h3>
-                    @can('courts.update')
-                        <div class="card-tools"><a href="{{ route('courts.edit', $court) }}" class="btn btn-sm btn-primary"><i class="fas fa-edit"></i> Editar</a></div>
-                    @endcan
+                    <div class="card-tools">
+                        @can('reservations.index')
+                            <a href="{{ route('reservations.agenda', ['court_id' => $court->id]) }}" class="btn btn-sm btn-default"><i class="far fa-calendar-alt"></i> Agenda</a>
+                            <a href="{{ route('reservations.index', ['court_id' => $court->id]) }}" class="btn btn-sm btn-default"><i class="fas fa-calendar-check"></i> Reservas</a>
+                        @endcan
+                        @can('courts.update')
+                            <a href="{{ route('courts.edit', $court) }}" class="btn btn-sm btn-primary"><i class="fas fa-edit"></i> Editar</a>
+                        @endcan
+                    </div>
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
@@ -70,6 +76,63 @@
                     @include('courts.partials.fields-table', ['editable' => false])
                 </div>
             </div>
+            <div class="card card-info card-outline">
+                <div class="card-header"><h3 class="card-title"><i class="fas fa-volleyball-ball mr-1"></i> Artículos en alquiler</h3></div>
+                <div class="card-body p-0">
+                    @include('courts.partials.rental-items-table', ['editable' => false])
+                </div>
+            </div>
+            <div class="card card-warning card-outline">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-glass-cheers mr-1"></i> Espacios para eventos</h3>
+                    @can('event_reservations.index')
+                        <div class="card-tools">
+                            <a href="{{ route('event-reservations.index', ['court_id' => $court->id]) }}" class="btn btn-sm btn-default"><i class="fas fa-calendar-check"></i> Reservas de eventos</a>
+                        </div>
+                    @endcan
+                </div>
+                <div class="card-body p-0">
+                    @include('courts.partials.event-spaces-table', ['editable' => false])
+                </div>
+            </div>
+            @can('stores.index')
+                <div class="card card-success card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-store mr-1"></i> Tiendas</h3>
+                        @can('stores.store')
+                            <div class="card-tools">
+                                <a href="{{ route('stores.create', ['court_id' => $court->id]) }}" class="btn btn-sm btn-success"><i class="fas fa-plus"></i> Crear tienda</a>
+                            </div>
+                        @endcan
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                @forelse ($court->stores as $store)
+                                    <tr>
+                                        <td class="pl-3"><a href="{{ route('stores.show', $store) }}">{{ $store->name }}</a></td>
+                                        <td>
+                                            @foreach ($store->categories as $category)
+                                                <span class="badge badge-info">{{ $category->name }}</span>
+                                            @endforeach
+                                        </td>
+                                        <td class="text-muted text-nowrap">{{ $store->products_count }} productos</td>
+                                        <td class="pr-3 text-right">
+                                            @if ($store->is_active)
+                                                <span class="badge badge-success">Activa</span>
+                                            @else
+                                                <span class="badge badge-secondary">Inactiva</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td class="text-muted p-3">Este centro todavía no tiene tiendas.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endcan
             @include('courts.partials.managers', ['editable' => false])
         </div>
     </div>

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../models/court_field_model.dart';
 import '../../models/sport_model.dart';
 import '../../services/court_api_service.dart';
+import '../../services/event_space_api_service.dart';
+import '../event_spaces/event_spaces_teaser.dart';
 import 'court_payment_screen.dart';
 import 'reserve_courts_screen.dart';
 
@@ -11,10 +13,22 @@ class CourtFieldDetailScreen extends StatefulWidget {
     required this.field,
     required this.initialDate,
     required this.courtApiService,
+    this.initialSport,
+    this.returnAfterBooking = false,
+    this.eventSpaceApiService,
     super.key,
   });
 
+  /// Loads the center's event spaces; built from [courtApiService] when null.
+  final EventSpaceApiService? eventSpaceApiService;
+
+  /// See [ReserveCourtsScreen.returnAfterBooking].
+  final bool returnAfterBooking;
+
   final CourtFieldModel field;
+
+  /// Sport to preselect (e.g. the one filtered in the list); defaults to the court's first sport.
+  final SportModel? initialSport;
   final DateTime initialDate;
   final CourtApiService courtApiService;
 
@@ -29,14 +43,22 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
     name: widget.field.name,
     pricePerHour: widget.field.pricePerHour,
     sports: widget.field.sports,
+    airConditioningPrice: widget.field.airConditioningPrice,
+    lightingPrice: widget.field.lightingPrice,
+    lightingFrom: widget.field.lightingFrom,
   );
   late List<CourtFieldSummaryModel> _venueFields = [_field];
-  late SportModel? _sport = widget.field.sports.isEmpty ? null : widget.field.sports.first;
+  late SportModel? _sport =
+      widget.initialSport ?? (widget.field.sports.isEmpty ? null : widget.field.sports.first);
   CourtAvailabilityModel? _availability;
   bool _loading = true;
   String? _error;
-  String? _selectedStart;
-  int _hours = 1;
+
+  late final EventSpaceApiService _eventSpaceApiService = widget.eventSpaceApiService ??
+      EventSpaceApiService(baseUrl: widget.courtApiService.baseUrl, token: widget.courtApiService.token);
+
+  /// Picked hours across courts and days, keyed by [SelectedSlot.key]. Kept while browsing.
+  final Map<String, SelectedSlot> _selected = {};
 
   @override
   void initState() {
@@ -48,8 +70,6 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
     setState(() {
       _loading = true;
       _error = null;
-      _selectedStart = null;
-      _hours = 1;
     });
     try {
       final availability = await widget.courtApiService.availability(
@@ -61,6 +81,10 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
         _availability = availability;
         if (availability.venueFields.isNotEmpty) {
           _venueFields = availability.venueFields;
+        }
+        // Drop picked hours of this court/day that someone else booked meanwhile.
+        for (final slot in availability.slots.where((slot) => !slot.available)) {
+          _selected.remove(SelectedSlot.slotKey(_field.id, _date, slot.start));
         }
         _loading = false;
       });
@@ -105,72 +129,66 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
     _load();
   }
 
-  bool _canBookHours(int hours) {
-    final start = _selectedStart;
-    final slots = _availability?.slots;
-    if (start == null || slots == null) return false;
-    final index = slots.indexWhere((slot) => slot.start == start);
-    if (index < 0) return false;
-    for (var offset = 0; offset < hours; offset++) {
-      if (index + offset >= slots.length || !slots[index + offset].available) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  double get _amount => _field.pricePerHour * _hours;
-
-  String? get _endTime {
-    if (!_canBookHours(_hours) || _selectedStart == null) return null;
-    final parts = _selectedStart!.split(':');
-    final start = DateTime(2026, 1, 1, int.parse(parts[0]), int.parse(parts[1]));
-    final end = start.add(Duration(hours: _hours));
-    final hour = end.hour.toString().padLeft(2, '0');
-    final minute = end.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
-  }
-
-  Future<void> _openPayment() async {
+  void _toggleSlot(CourtSlotModel slot) {
     final sport = _sport;
     if (sport == null) return;
-    await Navigator.of(context).push(
+    final key = SelectedSlot.slotKey(_field.id, _date, slot.start);
+    setState(() {
+      if (_selected.remove(key) == null) {
+        _selected[key] = SelectedSlot(field: _field, sport: sport, date: _date, start: slot.start);
+      }
+    });
+  }
+
+  void _removeItem(BookingItem item) {
+    final start = int.parse(item.startTime.split(':')[0]);
+    setState(() {
+      for (var hour = start; hour < start + item.hours; hour++) {
+        _selected.remove(SelectedSlot.slotKey(item.field.id, item.date, '${hour.toString().padLeft(2, '0')}:00'));
+      }
+    });
+  }
+
+  int _selectedCountFor(int fieldId) => _selected.values.where((slot) => slot.field.id == fieldId).length;
+
+  List<BookingItem> get _items => groupSlotsIntoRanges(_selected.values);
+
+  double get _amount => _items.fold(0, (total, item) => total + item.amount);
+
+  Future<void> _openPayment() async {
+    final booked = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => CourtPaymentScreen(
-          field: CourtFieldModel(
-            id: _field.id,
-            name: _field.name,
-            pricePerHour: _field.pricePerHour,
-            venue: widget.field.venue,
-            sports: _field.sports,
-          ),
-          sport: sport,
-          date: _date,
-          startTime: _selectedStart!,
-          endTime: _endTime!,
-          hours: _hours,
+          venue: widget.field.venue,
+          items: _items,
           courtApiService: widget.courtApiService,
+          returnAfterBooking: widget.returnAfterBooking,
         ),
       ),
     );
-    // The hour may have been taken or released meanwhile.
-    if (mounted) _load();
+    if (!mounted) return;
+    if (booked == true) setState(_selected.clear);
+    // The hours may have been taken or released meanwhile.
+    _load();
   }
 
   @override
   Widget build(BuildContext context) {
     final venue = widget.field.venue;
     final textTheme = Theme.of(context).textTheme;
-    final canPay = _endTime != null && _sport != null;
+    final items = _items;
+    final hours = items.fold<int>(0, (total, item) => total + item.hours);
     return Scaffold(
       appBar: AppBar(title: Text(venue.name)),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FilledButton(
-            onPressed: canPay ? _openPayment : null,
+            onPressed: items.isEmpty ? null : _openPayment,
             child: Text(
-              canPay ? 'Reservar · ${formatBs(_amount)}' : 'Selecciona un horario',
+              items.isEmpty
+                  ? 'Selecciona uno o más horarios'
+                  : 'Continuar · $hours ${hours == 1 ? 'hora' : 'horas'} · ${formatBs(_amount)}',
             ),
           ),
         ),
@@ -230,12 +248,16 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
                   children: [
                     for (final field in _fieldsForSport)
                       ChoiceChip(
-                        label: Text('${field.name} · ${formatBs(field.pricePerHour)}/h'),
+                        label: Text(
+                          '${field.name} · ${formatBs(field.pricePerHour)}/h'
+                          '${_selectedCountFor(field.id) > 0 ? ' · ${_selectedCountFor(field.id)} h' : ''}',
+                        ),
                         selected: _field.id == field.id,
                         onSelected: (_) => _selectField(field),
                       ),
                   ],
                 ),
+                _FieldExtras(field: _field),
                 const SizedBox(height: 16),
                 Text('Fecha', style: textTheme.titleSmall),
                 const SizedBox(height: 8),
@@ -272,43 +294,19 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
                 else
                   _Schedule(
                     availability: _availability!,
-                    selectedStart: _selectedStart,
-                    onSelect: (start) {
-                      setState(() {
-                        _selectedStart = start;
-                        if (!_canBookHours(_hours)) _hours = 1;
-                      });
-                    },
+                    isSelected: (slot) => _selected.containsKey(SelectedSlot.slotKey(_field.id, _date, slot.start)),
+                    onToggle: _toggleSlot,
                   ),
-                const SizedBox(height: 16),
-                Text('Horas de reserva', style: textTheme.titleSmall),
-                const SizedBox(height: 8),
-                SegmentedButton<int>(
-                  segments: const [
-                    ButtonSegment(value: 1, label: Text('1 hora')),
-                    ButtonSegment(value: 2, label: Text('2 horas')),
-                  ],
-                  selected: {_hours},
-                  onSelectionChanged: (selection) {
-                    final hours = selection.first;
-                    if (!_canBookHours(hours) && _selectedStart != null) {
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          const SnackBar(content: Text('No hay espacio para esas horas.')),
-                        );
-                      return;
-                    }
-                    setState(() => _hours = hours);
-                  },
-                ),
-                if (_endTime != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    '${_sport?.name ?? ''} · $_selectedStart – $_endTime · ${formatBs(_amount)}',
-                    style: textTheme.titleMedium,
-                  ),
+                if (items.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _SelectionSummary(items: items, total: _amount, onRemove: _removeItem),
                 ],
+                // The court list tells whether the center rents event spaces; skip the request when it doesn't.
+                if (venue.eventSpacesCount != 0)
+                  EventSpacesTeaser(
+                    courtId: venue.id,
+                    eventSpaceApiService: _eventSpaceApiService,
+                  ),
               ],
             ),
           ),
@@ -321,13 +319,13 @@ class _CourtFieldDetailScreenState extends State<CourtFieldDetailScreen> {
 class _Schedule extends StatelessWidget {
   const _Schedule({
     required this.availability,
-    required this.selectedStart,
-    required this.onSelect,
+    required this.isSelected,
+    required this.onToggle,
   });
 
   final CourtAvailabilityModel availability;
-  final String? selectedStart;
-  final ValueChanged<String> onSelect;
+  final bool Function(CourtSlotModel slot) isSelected;
+  final ValueChanged<CourtSlotModel> onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -351,6 +349,12 @@ class _Schedule extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
+        const SizedBox(height: 4),
+        Text(
+          'Toca varias horas seguidas para jugar más de una hora. Puedes sumar otras canchas o '
+          'fechas: tu selección se mantiene.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
         const SizedBox(height: 12),
         const _Legend(),
         const SizedBox(height: 12),
@@ -368,10 +372,10 @@ class _Schedule extends StatelessWidget {
                     width: width,
                     child: _SlotTile(
                       slot: slot,
-                      selected: selectedStart == slot.start,
+                      selected: isSelected(slot),
                       onTap: () {
                         if (slot.available) {
-                          onSelect(slot.start);
+                          onToggle(slot);
                           return;
                         }
                         final message = slot.isReserved
@@ -427,12 +431,29 @@ class _SlotTile extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '${slot.start}–${slot.end}',
-                style: TextStyle(color: foreground, fontWeight: FontWeight.w600),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      '${slot.start}–${slot.end}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: foreground, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  if (slot.lighting && slot.available) ...[
+                    const SizedBox(width: 2),
+                    Tooltip(
+                      message: 'Con luz: tiene costo extra',
+                      child: Icon(Icons.lightbulb_outline, size: 14, color: foreground),
+                    ),
+                  ],
+                ],
               ),
               Text(
                 switch (slot) {
+                  _ when selected => 'Elegido',
                   _ when slot.isReserved => slot.sportName ?? 'Reservado',
                   _ when slot.isPast => 'Pasado',
                   _ => 'Libre',
@@ -443,6 +464,110 @@ class _SlotTile extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Luz desde las 18:00: + Bs 10/h" and "Aire acondicionado opcional: + Bs 15/h" of the selected court.
+class _FieldExtras extends StatelessWidget {
+  const _FieldExtras({required this.field});
+
+  final CourtFieldSummaryModel field;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = [
+      if ((field.lightingPrice ?? 0) > 0 && field.lightingFrom != null)
+        (Icons.lightbulb_outline, 'Luz desde las ${field.lightingFrom}: + ${formatBs(field.lightingPrice!)}/h'),
+      if (field.offersAirConditioning)
+        (Icons.ac_unit, 'Aire acondicionado opcional: + ${formatBs(field.airConditioningPrice!)}/h'),
+    ];
+    if (lines.isEmpty) return const SizedBox.shrink();
+
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        );
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final (icon, text) in lines)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(
+                children: [
+                  Icon(icon, size: 14, color: style?.color),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text(text, style: style)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Picked ranges, one row per court/day/consecutive hours, with their price.
+class _SelectionSummary extends StatelessWidget {
+  const _SelectionSummary({required this.items, required this.total, required this.onRemove});
+
+  final List<BookingItem> items;
+  final double total;
+  final ValueChanged<BookingItem> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Tu selección', style: textTheme.titleSmall),
+            for (final item in items)
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${item.field.name} · ${item.startTime}–${item.endTime}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          '${_dayLabel(item.date)} · ${item.sport.name} · '
+                          '${item.hours} ${item.hours == 1 ? 'hora' : 'horas'}',
+                          style: textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(formatBs(item.amount)),
+                  IconButton(
+                    tooltip: 'Quitar',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => onRemove(item),
+                  ),
+                ],
+              ),
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Row(
+                children: [
+                  const Expanded(child: Text('Total', style: TextStyle(fontWeight: FontWeight.w700))),
+                  Text(formatBs(total), style: textTheme.titleMedium),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

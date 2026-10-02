@@ -12,6 +12,7 @@ class MatchPlayersList extends StatelessWidget {
     this.isFull = false,
     this.onViewPlayer,
     this.onRemovePlayer,
+    this.onOpenProfile,
     this.onAddPlayer,
     this.onAddToReserve,
     super.key,
@@ -24,6 +25,9 @@ class MatchPlayersList extends StatelessWidget {
   final bool isFull;
   final ValueChanged<MatchPlayerModel>? onViewPlayer;
   final ValueChanged<MatchPlayerModel>? onRemovePlayer;
+
+  /// Opens the player's profile (receives the user id).
+  final ValueChanged<int>? onOpenProfile;
   final VoidCallback? onAddPlayer;
   final VoidCallback? onAddToReserve;
 
@@ -65,6 +69,7 @@ class MatchPlayersList extends StatelessWidget {
           ),
           title: Text(organizerName),
           subtitle: const Text('Organizador'),
+          onTap: organizerUserId == null || onOpenProfile == null ? null : () => onOpenProfile!(organizerUserId!),
         ),
         for (final player in activePlayers)
           _PlayerTile(
@@ -72,6 +77,7 @@ class MatchPlayersList extends StatelessWidget {
             isOrganizer: isOrganizer,
             onViewPlayer: onViewPlayer,
             onRemovePlayer: onRemovePlayer,
+            onOpenProfile: onOpenProfile,
           ),
         if (isFull || reservedPlayers.isNotEmpty) ...[
           const SizedBox(height: 24),
@@ -109,6 +115,7 @@ class MatchPlayersList extends StatelessWidget {
                 reservePosition: entry.key + 1,
                 onViewPlayer: onViewPlayer,
                 onRemovePlayer: onRemovePlayer,
+                onOpenProfile: onOpenProfile,
               ),
         ],
       ],
@@ -123,6 +130,7 @@ class _PlayerTile extends StatelessWidget {
     this.reservePosition,
     this.onViewPlayer,
     this.onRemovePlayer,
+    this.onOpenProfile,
   });
 
   final MatchPlayerModel player;
@@ -130,14 +138,17 @@ class _PlayerTile extends StatelessWidget {
   final int? reservePosition;
   final ValueChanged<MatchPlayerModel>? onViewPlayer;
   final ValueChanged<MatchPlayerModel>? onRemovePlayer;
+  final ValueChanged<int>? onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final label = player.user?.nickname ?? player.user?.name ?? 'Jugador';
 
+    final userId = player.user?.id;
     return ListTile(
       contentPadding: EdgeInsets.zero,
+      onTap: userId == null || onOpenProfile == null ? null : () => onOpenProfile!(userId),
       leading: CircleAvatar(
         backgroundColor: player.isReserved ? colors.tertiaryContainer : colors.secondaryContainer,
         child: Text(label.isNotEmpty ? label[0].toUpperCase() : '?'),

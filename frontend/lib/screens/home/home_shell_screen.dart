@@ -4,6 +4,7 @@ import '../../models/user_model.dart';
 import '../../services/court_api_service.dart';
 import '../../services/match_api_service.dart';
 import '../../services/sport_api_service.dart';
+import '../../services/user_api_service.dart';
 import '../placeholder/coming_soon_screen.dart';
 import '../profile/profile_screen.dart';
 import 'dashboard_screen.dart';
@@ -31,6 +32,10 @@ class _HomeShellScreenState extends State<HomeShellScreen> {
     baseUrl: widget.matchApiService.baseUrl,
     token: widget.matchApiService.token,
   );
+  late final _userApiService = UserApiService(
+    baseUrl: widget.matchApiService.baseUrl,
+    token: widget.matchApiService.token,
+  );
   late final _courtApiService = CourtApiService(
     baseUrl: widget.matchApiService.baseUrl,
     token: widget.matchApiService.token,
@@ -40,6 +45,7 @@ class _HomeShellScreenState extends State<HomeShellScreen> {
   void dispose() {
     _sportApiService.dispose();
     _courtApiService.dispose();
+    _userApiService.dispose();
     super.dispose();
   }
 
@@ -58,7 +64,13 @@ class _HomeShellScreenState extends State<HomeShellScreen> {
         onOpenProfile: _goToProfileTab,
       ),
       const ComingSoonScreen(title: 'Explorar'),
-      ProfileScreen(user: widget.user, onLogout: widget.onLogout),
+      ProfileScreen(
+        user: widget.user,
+        onLogout: widget.onLogout,
+        userApiService: _userApiService,
+        matchApiService: widget.matchApiService,
+        courtApiService: _courtApiService,
+      ),
     ];
 
     return Scaffold(

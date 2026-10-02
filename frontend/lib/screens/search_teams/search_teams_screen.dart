@@ -12,7 +12,7 @@ import 'match_detail_screen.dart';
 import 'widgets/match_card.dart';
 import 'widgets/open_match_filters.dart';
 
-/// "Buscar equipos" screen: shows the user's joined matches and open matches to join.
+/// "Buscar/Crear canchas" screen: shows the user's joined matches and open matches to join.
 class SearchTeamsScreen extends StatefulWidget {
   const SearchTeamsScreen({
     required this.matchApiService,
@@ -245,7 +245,7 @@ class _SearchTeamsScreenState extends State<SearchTeamsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Buscar equipos'),
+        title: const Text('Buscar/Crear canchas'),
         actions: [
           IconButton(
             onPressed: _isLoading ? null : _loadMatches,

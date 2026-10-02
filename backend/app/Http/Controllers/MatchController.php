@@ -11,12 +11,14 @@ use App\Models\MatchModel;
 use App\Models\MatchPlayer;
 use App\Models\PlayerRating;
 use App\Models\RatingTag;
+use App\Models\Team;
 use App\Models\TrustedPlayer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class MatchController extends Controller
 {
@@ -45,16 +47,51 @@ class MatchController extends Controller
             'max_players' => ['required', 'integer', 'min:1', 'max:65535'],
             'player_ids' => ['sometimes', 'array'],
             'player_ids.*' => ['integer', 'distinct', 'exists:users,id'],
+            // Every member of each team is added as a confirmed player.
+            'team_ids' => ['sometimes', 'array', 'max:10'],
+            'team_ids.*' => ['integer', 'distinct', 'exists:teams,id'],
             'join_as_player' => ['sometimes', 'boolean'],
+            // Court booking of the organizer this match is played on (from "Mis reservas").
+            'booking_code' => [
+                'nullable',
+                'string',
+                Rule::exists('court_reservations', 'booking_code')->where('user_id', $request->user()->getAuthIdentifier()),
+            ],
             'payment_qr' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:4096'],
         ], [
             'court_field_ids.required' => 'Selecciona al menos una cancha del centro deportivo.',
             'court_field_ids.*.exists' => 'Una de las canchas no pertenece al centro deportivo seleccionado.',
+            'booking_code.exists' => 'Esa reserva no existe o no es tuya.',
         ]);
 
         $organizerId = $request->user()->getAuthIdentifier();
         $joinAsPlayer = $request->boolean('join_as_player');
+
+        if (! empty($validated['booking_code']) && MatchModel::query()
+            ->where('booking_code', $validated['booking_code'])
+            ->where('status', '!=', MatchStatus::Cancelled->value)
+            ->exists()) {
+            throw ValidationException::withMessages([
+                'booking_code' => 'Ya creaste un partido con esta reserva.',
+            ]);
+        }
+
+        $teams = Team::query()
+            ->with(['sport', 'members'])
+            ->whereIn('id', $validated['team_ids'] ?? [])
+            ->get();
+        $otherSport = $teams->first(fn (Team $team) => $team->sport_id !== (int) $validated['sport_id']);
+        if ($otherSport !== null) {
+            throw ValidationException::withMessages([
+                'team_ids' => "El equipo {$otherSport->name} es de {$otherSport->sport->name}; elige equipos del deporte del partido.",
+            ]);
+        }
+        $teamMemberIds = $teams->flatMap(fn (Team $team) => $team->members->pluck('user_id'));
+        // Adding a team you play in adds you as a player too.
+        $joinAsPlayer = $joinAsPlayer || $teamMemberIds->contains($organizerId);
+
         $playerIds = collect($validated['player_ids'] ?? [])
+            ->merge($teamMemberIds)
             ->reject(fn ($id) => $id === $organizerId)
             ->unique()
             ->values();
@@ -62,7 +99,10 @@ class MatchController extends Controller
         $takenSlots = $playerIds->count() + ($joinAsPlayer ? 1 : 0);
         if ($takenSlots > $validated['max_players']) {
             return response()->json([
-                'message' => 'The number of selected players exceeds max_players.',
+                'message' => "Los jugadores seleccionados ({$takenSlots}) superan el límite de jugadores del partido ({$validated['max_players']}).",
+                'errors' => [
+                    'max_players' => ["Los jugadores seleccionados ({$takenSlots}) superan el límite de jugadores del partido ({$validated['max_players']})."],
+                ],
             ], 422);
         }
 
@@ -70,12 +110,13 @@ class MatchController extends Controller
             ? $request->file('payment_qr')->store('payment-qrs', 'public')
             : null;
 
-        $match = DB::transaction(function () use ($validated, $organizerId, $playerIds, $takenSlots, $joinAsPlayer, $paymentQrPath): MatchModel {
+        $match = DB::transaction(function () use ($validated, $organizerId, $playerIds, $takenSlots, $joinAsPlayer, $paymentQrPath, $teams): MatchModel {
             $match = MatchModel::create([
                 'organizer_id' => $organizerId,
                 'sport_id' => $validated['sport_id'],
                 'level_id' => $validated['level_id'],
                 'court_id' => $validated['court_id'],
+                'booking_code' => $validated['booking_code'] ?? null,
                 'gender' => $validated['gender'],
                 'payment_qr_path' => $paymentQrPath,
                 'scheduled_at' => $validated['start_time'],
@@ -88,6 +129,7 @@ class MatchController extends Controller
             ]);
 
             $match->courtFields()->sync($validated['court_field_ids'] ?? []);
+            $match->teams()->sync($teams->modelKeys());
 
             if ($joinAsPlayer) {
                 $match->players()->create([
@@ -105,7 +147,7 @@ class MatchController extends Controller
                 ]);
             }
 
-            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports']);
+            return $match->fresh(['players.user', 'organizer', 'sport', 'level', 'court', 'courtFields.sports', 'teams']);
         });
 
         return response()->json(['data' => $match], 201);
@@ -214,6 +256,7 @@ class MatchController extends Controller
                 'court.sports',
                 'courtFields.sports',
                 'players.user',
+                'teams',
             ])
             ->findOrFail($id);
 

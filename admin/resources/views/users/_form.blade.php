@@ -51,12 +51,23 @@
 @php($selectedRoles = old('roles', $user->exists ? $user->getRoleNames()->all() : []))
 <div class="row">
     @foreach ($roles as $role)
-        <div class="col-md-3 col-6">
-            <div class="custom-control custom-checkbox">
+        <div class="col-md-6">
+            <div class="custom-control custom-checkbox mb-2">
                 <input type="checkbox" class="custom-control-input" id="role_{{ $role->id }}" name="roles[]" value="{{ $role->name }}" @checked(in_array($role->name, $selectedRoles, true))>
-                <label class="custom-control-label" for="role_{{ $role->id }}">{{ $role->name }}</label>
+                <label class="custom-control-label" for="role_{{ $role->id }}">
+                    <strong>{{ $role->name }}</strong>
+                    <span class="d-block small text-muted font-weight-normal">
+                        {{ \App\Models\User::ROLE_DESCRIPTIONS[$role->name] ?? 'Rol personalizado.' }}
+                        @if ($role->name !== 'superadmin')
+                            · {{ $role->permissions->count() }} permisos
+                        @endif
+                    </span>
+                </label>
             </div>
         </div>
     @endforeach
 </div>
+@if (! auth()->user()->hasRole('superadmin'))
+    <p class="text-muted small mb-0">Solo ves los roles cuyos permisos también tienes tú.</p>
+@endif
 <p class="text-muted small mt-2">Solo los usuarios con el permiso <code>dashboard.index</code> pueden entrar a este panel.</p>

@@ -13,6 +13,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Court extends Model
 {
+    /**
+     * Photos the gallery of a venue admits.
+     */
+    public const MAX_PHOTOS = 10;
+
     protected $fillable = [
         'owner_id',
         'city_id',
@@ -82,5 +87,29 @@ class Court extends Model
     public function matches(): HasMany
     {
         return $this->hasMany(MatchModel::class, 'court_id');
+    }
+
+    /**
+     * Spaces for gatherings (grill areas, halls...) rented by the hour.
+     */
+    public function eventSpaces(): HasMany
+    {
+        return $this->hasMany(EventSpace::class)->chaperone()->orderBy('name');
+    }
+
+    /**
+     * Sports gear rented with the courts (balls, rackets...).
+     */
+    public function rentalItems(): HasMany
+    {
+        return $this->hasMany(RentalItem::class)->orderBy('name');
+    }
+
+    /**
+     * Shops of the venue (sports gear, drinks...).
+     */
+    public function stores(): HasMany
+    {
+        return $this->hasMany(Store::class)->orderBy('name');
     }
 }

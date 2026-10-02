@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources;
 
-use App\Enums\CourtFieldFeature;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -36,7 +35,7 @@ class CourtResource extends JsonResource
                 'price_per_hour' => (float) $field->price_per_hour,
                 'dimensions' => $field->dimensions,
                 'description' => $field->description,
-                'features' => $field->features?->map(fn (CourtFieldFeature $feature) => ['key' => $feature->value, 'label' => $feature->label()])->values() ?? [],
+                'features' => CourtFeatureResource::collection($field->features),
                 'sports' => SportResource::collection($field->sports),
             ])),
         ];

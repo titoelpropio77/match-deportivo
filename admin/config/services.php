@@ -20,6 +20,13 @@ return [
         'map_id' => env('GOOGLE_MAPS_MAP_ID', 'DEMO_MAP_ID'),
     ],
 
+    'mailgun' => [
+        'domain' => env('MAILGUN_DOMAIN'),
+        'secret' => env('MAILGUN_SECRET'),
+        'endpoint' => env('MAILGUN_ENDPOINT', 'api.mailgun.net'),
+        'scheme' => 'https',
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
