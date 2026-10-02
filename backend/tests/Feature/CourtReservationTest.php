@@ -193,8 +193,47 @@ class CourtReservationTest extends TestCase
             ->assertJsonPath('data.1.status', 'paid')
             ->assertJsonPath('data.1.field.venue.name', 'Canchas El Torneo');
 
+        // A venue cancellation stays listed (after the upcoming ones) with its reason.
+        CourtReservation::query()->whereKey($sooner)->update([
+            'status' => CourtReservation::STATUS_CANCELLED,
+            'cancelled_at' => now(),
+            'cancelled_by' => User::factory()->create()->id,
+            'cancellation_reason' => 'Mantenimiento de la cancha',
+        ]);
+
+        $this->getJson('/api/court-reservations')
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.id', $later)
+            ->assertJsonPath('data.1.id', $sooner)
+            ->assertJsonPath('data.1.cancelled_by_venue', true)
+            ->assertJsonPath('data.1.cancellation_reason', 'Mantenimiento de la cancha');
+
         Sanctum::actingAs(User::factory()->create());
         $this->getJson('/api/court-reservations')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_venue_confirmed_reservations_block_the_slot_without_expiring(): void
+    {
+        [$user, $field, $sport] = $this->bookableField();
+        $date = now()->addDay()->toDateString();
+
+        CourtReservation::query()->create([
+            'court_field_id' => $field->id,
+            'customer_name' => 'Cliente presencial',
+            'sport_id' => $sport->id,
+            'reserved_on' => $date,
+            'starts_at' => '10:00:00',
+            'ends_at' => '11:00:00',
+            'hours' => 1,
+            'amount' => 80,
+            'status' => CourtReservation::STATUS_CONFIRMED,
+            'source' => 'admin',
+        ]);
+
+        $this->travel(CourtReservation::PAYMENT_WINDOW_MINUTES + 5)->minutes();
+
+        $this->getJson("/api/court-fields/{$field->id}/availability?date={$date}")
+            ->assertJsonPath('data.slots.2.status', 'reserved');
     }
 
     /**

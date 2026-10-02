@@ -51,6 +51,8 @@ class AuthService {
         _client = client ?? http.Client();
 
   final String _baseUrl;
+
+  String get baseUrl => _baseUrl;
   final http.Client _client;
 
   Future<AuthResult> register({
@@ -60,6 +62,8 @@ class AuthService {
     required String passwordConfirmation,
     String? phone,
     required String gender,
+    DateTime? birthDate,
+    List<int> favoriteSportIds = const [],
     String? photoPath,
     List<int>? photoBytes,
     String? photoFilename,
@@ -73,6 +77,11 @@ class AuthService {
       'password_confirmation': passwordConfirmation,
       if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
       'gender': gender,
+      if (birthDate != null)
+        'birth_date':
+            '${birthDate.year.toString().padLeft(4, '0')}-${birthDate.month.toString().padLeft(2, '0')}-${birthDate.day.toString().padLeft(2, '0')}',
+      for (var index = 0; index < favoriteSportIds.length; index++)
+        'favorite_sport_ids[$index]': '${favoriteSportIds[index]}',
     });
 
     if (photoPath != null && photoPath.isNotEmpty) {

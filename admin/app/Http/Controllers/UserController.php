@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -134,22 +135,40 @@ class UserController extends Controller
     }
 
     /**
-     * Only a superadmin can grant the superadmin role.
+     * Roles the current user may grant: a superadmin grants any; anyone else only roles whose
+     * permissions they hold themselves (so nobody can create a user with more access than they have).
+     * superadmin is never assignable by others: it has no permissions but passes every check.
+     *
+     * @return Collection<int, Role>
      */
-    private function assignableRoles()
+    private function assignableRoles(): Collection
     {
-        return Role::query()
-            ->when(! Auth::user()->hasRole('superadmin'), fn ($query) => $query->where('name', '!=', 'superadmin'))
-            ->orderBy('name')
-            ->get();
+        $actor = Auth::user();
+        $roles = Role::query()->with('permissions:id,name')->orderBy('name')->get();
+
+        if ($actor->hasRole('superadmin')) {
+            return $roles;
+        }
+
+        $own = $actor->getAllPermissions()->pluck('name');
+
+        return $roles
+            ->reject(fn (Role $role) => $role->name === 'superadmin')
+            ->filter(fn (Role $role) => $role->permissions->pluck('name')->diff($own)->isEmpty())
+            ->values();
     }
 
+    /**
+     * Users holding a role the current user cannot grant (e.g. a superadmin) are off limits.
+     */
     private function ensureCanManage(User $user): void
     {
+        $outOfReach = $user->getRoleNames()->diff($this->assignableRoles()->pluck('name'));
+
         abort_if(
-            $user->hasRole('superadmin') && ! Auth::user()->hasRole('superadmin'),
+            $outOfReach->isNotEmpty(),
             403,
-            'Solo un superadmin puede modificar a otro superadmin.'
+            'No puedes modificar a un usuario con el rol '.$outOfReach->implode(', ').'.'
         );
     }
 }

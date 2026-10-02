@@ -11,6 +11,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Yajra\DataTables\Facades\DataTables;
 
 class PermissionController extends Controller
 {
@@ -23,8 +24,37 @@ class PermissionController extends Controller
     {
         return view('settings.permissions.index', [
             'roles' => Role::query()->orderBy('id')->get(),
-            'permissions' => Permission::query()->with('roles:id')->orderBy('name')->get(),
         ]);
+    }
+
+    /**
+     * Server-side DataTables source: one checkbox column per role (`role_<id>`).
+     */
+    public function data(): JsonResponse
+    {
+        $roles = Role::query()->orderBy('id')->get();
+        $canAssign = auth()->user()->can('permissions.assign');
+
+        $table = DataTables::eloquent(Permission::query()->with('roles:id'))
+            ->addColumn('module', fn (Permission $permission) => Str::before($permission->name, '.'))
+            ->filterColumn('module', function ($query, $keyword): void {
+                $query->where('name', 'ilike', "{$keyword}%");
+            })
+            // The module is the name prefix, so sorting by name keeps each module together.
+            ->orderColumn('module', 'name $1')
+            ->addColumn('action', fn (Permission $permission) => view('settings.permissions.partials.actions', ['permission' => $permission])->render());
+
+        foreach ($roles as $role) {
+            $table->addColumn('role_'.$role->id, fn (Permission $permission) => view('settings.permissions.partials.toggle', [
+                'permission' => $permission,
+                'role' => $role,
+                'canAssign' => $canAssign,
+            ])->render());
+        }
+
+        return $table
+            ->rawColumns([...$roles->map(fn (Role $role) => 'role_'.$role->id)->all(), 'action'])
+            ->toJson();
     }
 
     public function create(): View

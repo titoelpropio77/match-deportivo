@@ -23,6 +23,8 @@ class UserResource extends JsonResource
             'phone' => $this->phone,
             'preferred_position' => $this->preferred_position,
             'gender' => $this->gender,
+            'birth_date' => $this->birth_date?->toDateString(),
+            'favorite_sports' => SportResource::collection($this->whenLoaded('favoriteSports')),
             'photo_url' => $this->avatar_path
                 ? Storage::disk('public')->url($this->avatar_path)
                 : null,

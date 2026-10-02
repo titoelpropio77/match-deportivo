@@ -19,47 +19,25 @@
             <th class="no-export no-colvis text-right">Acción</th>
         </tr>
         </thead>
-        <tbody>
-        @foreach ($roles as $role)
-            <tr>
-                <td>{{ $role->id }}</td>
-                <td><strong>{{ $role->name }}</strong></td>
-                <td>{{ $role->guard_name }}</td>
-                <td class="text-center">
-                    @if ($role->name === 'superadmin')
-                        <span class="badge badge-danger">todos</span>
-                    @else
-                        <span class="badge badge-primary">{{ $role->permissions_count }}</span>
-                    @endif
-                </td>
-                <td class="text-center"><span class="badge badge-secondary">{{ $role->users_count }}</span></td>
-                <td data-order="{{ $role->created_at?->timestamp }}">{{ $role->created_at?->diffForHumans() }}</td>
-                <td class="text-right action-buttons">
-                    @if ($role->name !== 'superadmin')
-                        @can('roles.update')
-                            <a href="{{ route('settings.roles.edit', $role) }}" class="btn btn-link text-primary" title="Editar"><i class="fas fa-edit"></i></a>
-                        @endcan
-                        @can('roles.destroy')
-                            <button type="button" class="btn btn-link text-danger" title="Eliminar"
-                                    data-delete-url="{{ route('settings.roles.destroy', $role) }}"
-                                    data-name="el rol {{ $role->name }}"
-                                    data-warning="{{ $role->users_count }} usuario(s) perderán este rol."><i class="fas fa-trash-alt"></i></button>
-                        @endcan
-                    @else
-                        <span class="text-muted small"><i class="fas fa-lock"></i> protegido</span>
-                    @endif
-                </td>
-            </tr>
-        @endforeach
-        </tbody>
     </table>
 @endsection
 
 @push('scripts')
     <script>
         AdminTable.init('#roles-table', {
+            processing: true,
+            serverSide: true,
+            ajax: @json(route('settings.roles.data')),
             order: [[0, 'asc']],
-            columnDefs: [{ targets: -1, orderable: false, searchable: false }],
+            columns: [
+                { data: 'id', name: 'id' },
+                { data: 'name', name: 'name' },
+                { data: 'guard_name', name: 'guard_name' },
+                { data: 'permissions_count', name: 'permissions_count', searchable: false, className: 'text-center' },
+                { data: 'users_count', name: 'users_count', searchable: false, className: 'text-center' },
+                { data: 'created_at', name: 'created_at', searchable: false },
+                { data: 'action', name: 'action', orderable: false, searchable: false },
+            ],
         });
     </script>
 @endpush

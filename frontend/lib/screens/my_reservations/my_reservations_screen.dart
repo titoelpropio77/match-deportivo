@@ -2,15 +2,28 @@ import 'package:flutter/material.dart';
 
 import '../../models/court_field_model.dart';
 import '../../services/court_api_service.dart';
+import '../../services/match_api_service.dart';
 import '../reserve_court/court_payment_screen.dart';
 import '../reserve_court/reserve_courts_screen.dart';
 import 'reservation_detail_screen.dart';
 
 /// Courts the user booked from "Reservar cancha": upcoming first, then past ones.
 class MyReservationsScreen extends StatefulWidget {
-  const MyReservationsScreen({required this.courtApiService, super.key});
+  const MyReservationsScreen({
+    required this.courtApiService,
+    this.matchApiService,
+    this.currentUserId,
+    this.title = 'Mis reservas',
+    super.key,
+  });
+
+  final String title;
 
   final CourtApiService courtApiService;
+
+  /// Enables "Crear cancha" / "Ver cancha creada" in the detail.
+  final MatchApiService? matchApiService;
+  final int? currentUserId;
 
   @override
   State<MyReservationsScreen> createState() => _MyReservationsScreenState();
@@ -50,12 +63,14 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
     }
   }
 
-  Future<void> _open(CourtReservationModel reservation) async {
+  Future<void> _open(ReservationGroup group) async {
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => ReservationDetailScreen(
-          reservation: reservation,
+          group: group,
           courtApiService: widget.courtApiService,
+          matchApiService: widget.matchApiService,
+          currentUserId: widget.currentUserId,
         ),
       ),
     );
@@ -65,7 +80,7 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mis reservas')),
+      appBar: AppBar(title: Text(widget.title)),
       body: RefreshIndicator(onRefresh: _load, child: _buildBody()),
     );
   }
@@ -91,21 +106,21 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
       );
     }
 
-    final upcoming = _reservations.where((item) => item.isUpcoming).toList();
-    final past = _reservations.where((item) => !item.isUpcoming).toList();
+    // One card per booking: every court and hour range booked together.
+    final groups = ReservationGroup.fromReservations(_reservations);
+    final upcoming = groups.where((group) => group.isUpcoming).toList();
+    final past = groups.where((group) => !group.isUpcoming).toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         if (upcoming.isNotEmpty) ...[
           const _SectionTitle('Próximas'),
-          for (final reservation in upcoming)
-            _ReservationCard(reservation: reservation, onTap: () => _open(reservation)),
+          for (final group in upcoming) _ReservationCard(group: group, onTap: () => _open(group)),
         ],
         if (past.isNotEmpty) ...[
           const _SectionTitle('Anteriores'),
-          for (final reservation in past)
-            _ReservationCard(reservation: reservation, onTap: () => _open(reservation)),
+          for (final group in past) _ReservationCard(group: group, onTap: () => _open(group)),
         ],
       ],
     );
@@ -127,16 +142,21 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _ReservationCard extends StatelessWidget {
-  const _ReservationCard({required this.reservation, required this.onTap});
+  const _ReservationCard({required this.group, required this.onTap});
 
-  final CourtReservationModel reservation;
+  final ReservationGroup group;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colors = Theme.of(context).colorScheme;
-    final photos = reservation.field?.venue.photos ?? const [];
+    final photos = group.field?.venue.photos ?? const [];
+    final shown = group.isCancelled ? group.reservations : group.active;
+    final placeholder = ColoredBox(
+      color: colors.primaryContainer,
+      child: Icon(Icons.stadium_outlined, color: colors.onPrimaryContainer),
+    );
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -144,63 +164,54 @@ class _ReservationCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Opacity(
-          opacity: reservation.isUpcoming ? 1 : 0.6,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 96,
-                height: 104,
-                child: photos.isEmpty
-                    ? ColoredBox(
-                        color: colors.primaryContainer,
-                        child: Icon(Icons.stadium_outlined, color: colors.onPrimaryContainer),
-                      )
-                    : Image.network(
-                        photos.first,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => ColoredBox(
-                          color: colors.primaryContainer,
-                          child: Icon(Icons.stadium_outlined, color: colors.onPrimaryContainer),
+          opacity: group.isUpcoming ? 1 : 0.6,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 96,
+                  child: photos.isEmpty
+                      ? placeholder
+                      : Image.network(photos.first, fit: BoxFit.cover, errorBuilder: (_, _, _) => placeholder),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          group.venueName ?? 'Cancha',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                         ),
-                      ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        reservation.venueName ?? 'Cancha',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      Text(
-                        [reservation.fieldName, reservation.sportName].whereType<String>().join(' · '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${formatReservationDate(reservation.startsAt)} · ${reservation.startTime}–${reservation.endTime}',
-                        style: textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          ReservationStatusChip(reservation: reservation),
-                          const Spacer(),
-                          Text(formatBs(reservation.amount), style: textTheme.titleSmall),
-                        ],
-                      ),
-                    ],
+                        Text(formatReservationDate(group.startsAt), style: textTheme.bodySmall),
+                        const SizedBox(height: 4),
+                        for (final reservation in shown)
+                          Text(
+                            '${reservation.fieldName ?? 'Cancha'} · ${reservation.startTime}–${reservation.endTime}'
+                            '${reservation.date == group.first.date ? '' : ' (${formatReservationDate(reservation.startsAt)})'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            ReservationStatusChip.group(group),
+                            const Spacer(),
+                            Text(formatBs(group.amount), style: textTheme.titleSmall),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: colors.onSurfaceVariant),
-              const SizedBox(width: 4),
-            ],
+                Icon(Icons.chevron_right_rounded, color: colors.onSurfaceVariant),
+                const SizedBox(width: 4),
+              ],
+            ),
           ),
         ),
       ),

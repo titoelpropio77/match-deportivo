@@ -27,6 +27,9 @@ class RegisterRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:30'],
             'gender' => ['required', 'string', 'in:male,female'],
+            'birth_date' => ['nullable', 'date', 'before:-5 years', 'after:1900-01-01'],
+            'favorite_sport_ids' => ['sometimes', 'array'],
+            'favorite_sport_ids.*' => ['integer', 'distinct', 'exists:sports,id'],
             'password' => ['required', 'string', 'confirmed', Password::min(8)],
             'photo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp', 'max:2048'],
         ];

@@ -28,6 +28,19 @@ class User extends Authenticatable
     ];
 
     /**
+     * Shown next to each role when assigning roles to a user.
+     *
+     * @var array<string, string>
+     */
+    public const ROLE_DESCRIPTIONS = [
+        'superadmin' => 'Acceso total al sistema, incluida la configuración de roles y permisos.',
+        'admin' => 'Personal de la plataforma: todos los centros deportivos, reservas y usuarios.',
+        'partner' => 'Dueño de centros deportivos: administra solo los suyos, sus reservas y managers.',
+        'manager' => 'Encargado asignado por un partner: gestiona las canchas y reservas de ese centro.',
+        'cliente' => 'Jugador de la app, sin acceso al panel.',
+    ];
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
